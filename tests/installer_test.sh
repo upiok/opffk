@@ -104,6 +104,56 @@ expect_eq "verify_sha256 good" "0" "$(verify_sha256 "$_tmpf" "$_want"; echo $?)"
 expect_eq "verify_sha256 bad"  "1" "$(verify_sha256 "$_tmpf" 0000000000000000000000000000000000000000000000000000000000000000; echo $?)"
 rm -f "$_tmpf"
 
+# ---- regression: the curl|sh download path (stage_from_release) ---------------
+# Reproduces the exact flow of the one-command install without network:
+# a nested-layout tarball (what build.sh produces) is served to the
+# installer through the OPFFK_FETCH_CMD test hook, and the installer must
+# flatten it, verify hashes and complete the install.
+HOST_ARCH=$(detect_arch "$(uname -m)")
+WORK2=$(mktemp -d "${TMPDIR:-/tmp}/opffk-fetchtest.XXXXXX")
+REL2="$WORK2/rel"; SBX2="$WORK2/sbx"
+mkdir -p "$REL2" "$SBX2"
+cp "$ROOT_DIR/install.sh" "$REL2/install.sh"
+cp "$ROOT_DIR/packaging/S99opffk" "$REL2/S99opffk"
+cp "$ROOT_DIR/manifest.json" "$REL2/manifest.json"
+printf '#!/bin/sh\necho fake\n' > "$REL2/opffk-web-$HOST_ARCH"
+printf '#!/bin/sh\nsleep 30\n' > "$REL2/openflux-linux-$HOST_ARCH"
+chmod +x "$REL2/opffk-web-$HOST_ARCH" "$REL2/openflux-linux-$HOST_ARCH"
+FAKE_SHA2=$(sha256_of "$REL2/openflux-linux-$HOST_ARCH")
+sed "s/\"$HOST_ARCH\": \"[0-9a-f]\{64\}\"/\"$HOST_ARCH\": \"$FAKE_SHA2\"/; s/\"version\": \"node-v[^\"]*\"/\"version\": \"node-v0.0.0-test\"/" \
+    "$ROOT_DIR/manifest.json" > "$REL2/manifest.json"
+printf 'node-v0.0.0-test\n' > "$REL2/VERSION"
+# nested-layout tarball, exactly like scripts/build.sh packages it.
+# Keep a pristine copy of install.sh outside the release dir: the piped
+# curl|sh flow runs the freshly downloaded script, not the one in the
+# tarball.
+cp "$REL2/install.sh" "$WORK2/install.sh"
+mkdir "$REL2/opffk-v9.9.9-linux-amd64"
+mv "$REL2/install.sh" "$REL2/S99opffk" "$REL2/manifest.json" "$REL2/VERSION" \
+   "$REL2/opffk-web-$HOST_ARCH" "$REL2/openflux-linux-$HOST_ARCH" \
+   "$REL2/opffk-v9.9.9-linux-amd64/"
+( cd "$REL2" && tar -czf "$WORK2/opffk-v9.9.9-linux-amd64.tar.gz" "opffk-v9.9.9-linux-amd64" )
+cat > "$WORK2/fetch-hook.sh" <<'HOOK'
+#!/bin/sh
+case "$1" in
+    *.sha256) sha256sum "$FETCH_TARBALL" > "$2" ;;
+    *) cp "$FETCH_TARBALL" "$2" ;;
+esac
+HOOK
+chmod +x "$WORK2/fetch-hook.sh"
+OUT2=$(OPFFK_TEST_MODE=1 OPFFK_FETCH_CMD="$WORK2/fetch-hook.sh" FETCH_TARBALL="$WORK2/opffk-v9.9.9-linux-amd64.tar.gz" \
+    sh "$WORK2/install.sh" install --repo test/test --version v9.9.9 \
+    --prefix "$SBX2" --no-start 2>&1)
+if [ "$?" != "0" ]; then printf '%s\n' "$OUT2" | sed -n '1,20p' >&2; fi
+expect_eq "curl|sh path: nested tarball install succeeds" "0" "$?"
+[ -x "$SBX2/etc/init.d/S99opffk" ] && ok "curl|sh path: init script installed" || bad "curl|sh path: init script missing"
+[ -x "$SBX2/bin/openflux" ] && ok "curl|sh path: core binary installed" || bad "curl|sh path: core binary missing"
+case "$OUT2" in
+    *"release unpacked to staging"*) ok "curl|sh path: tarball flattened" ;;
+    *) bad "curl|sh path: flatten step not reached"; printf '%s\n' "$OUT2" | sed -n '1,15p' >&2 ;;
+esac
+rm -rf "$WORK2"
+
 # ---- sandboxed install flow (test mode) ---------------------------------------
 
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/opffk-insttest.XXXXXX")

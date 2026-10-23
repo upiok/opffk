@@ -326,7 +326,17 @@ Releases are expected at:
         info "tarball SHA-256 verified"
     ) || die "tarball verification failed" "Do not retry blindly: if the mismatch persists, the release may be corrupted or tampered with."
     tar -xzf "$STAGE/$_tgz" -C "$STAGE" || die "tar extraction failed" ""
-    [ -f "$STAGE/install.sh" ] && [ -f "$STAGE/opffk-web-$_arch" ] || die "tarball content invalid" ""
+    # The release tarball roots at a single opffk-<version>-linux-<arch>/
+    # directory (so a manual extraction gives the user a folder). Flatten
+    # it into the staging dir; flat tarballs are left as they are.
+    _inner="$STAGE/opffk-$OPFFK_VERSION-linux-$_arch"
+    if [ -d "$_inner" ] && [ -f "$_inner/install.sh" ]; then
+        mv "$_inner"/* "$STAGE"/ || die "cannot unpack release directory" ""
+        rmdir "$_inner" 2>/dev/null || true
+    fi
+    [ -f "$STAGE/install.sh" ] && [ -f "$STAGE/opffk-web-$_arch" ] || die "tarball content invalid" \
+"Expected install.sh and opffk-web-$_arch after extraction. The tarball may
+be from a different release layout - download a fresh release."
     info "release unpacked to staging"
 }
 
