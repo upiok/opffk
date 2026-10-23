@@ -23,6 +23,34 @@ the core's own IPC socket.
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
+# Disclaimer
+
+opffk is a **third-party deployment tool** for
+[OpenFlux](https://github.com/p1neappleXpress/OpenFlux). It is **not
+affiliated** with, endorsed by, or supported by the OpenFlux authors
+(p1neappleXpress) or Keenetic Systems. Both projects are **entirely
+non-commercial** and contain **no paid features, hidden subscriptions, or
+commercial benefit**.
+
+The authors of opffk **do not encourage** the use of this project to bypass
+restrictions or violate the rules of any platform, ISP, or jurisdiction, and
+**are not responsible** for the final scenarios of how users apply this
+tool in real life or on the Internet. Run an exit node **only on your own
+equipment** and within the rules that apply to you: you are solely
+responsible for the traffic leaving your node, for your ISP's terms of
+service, and for the laws of your country.
+
+The authors of opffk **are not responsible** for:
+
+- Any use of OpenFlux or opffk by third parties
+- Consequences of using forks, modifications, or self-built core binaries
+- Damage to your router, data, or network caused by installing or running
+  this software
+- Violations committed using an opffk-deployed node
+
+The software is provided **as is**, **without any warranties**. By
+installing it you accept full responsibility for its use.
+
 ---
 
 ## Installation
