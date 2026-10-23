@@ -3,15 +3,15 @@
   "comment": "Pinned upstream OpenFlux core used by opffk. URLs and SHA-256 verified against the upstream GitHub release on 2026-10-23. installer and backend refuse any binary whose hash differs.",
   "core": {
     "project": "OpenFlux",
-    "repository": "p1neappleXpress/OpenFlux",
+    "repository": "upiok/OpenFlux",
     "version": "node-v1.3.1",
     "channel": "node",
     "build_tag": "exitnode",
-    "url_template": "https://github.com/p1neappleXpress/OpenFlux/releases/download/node-v1.3.1/openflux-linux-{arch}",
+    "url_template": "https://github.com/upiok/OpenFlux/releases/download/node-v1.3.1/openflux-linux-{arch}",
     "sha256": {
-      "amd64": "94f0fbd2f7f60763bf6c4be0623e928ce878f846e33308dd41bc8d735e7b69b0",
-      "arm64": "dcf1fbf57bf535483c15b0aa0bd8bf6a3bc34248c1992db79b7ceeb818172f69",
-      "arm": "c19b474aa03e5a77bd8a1d31672bc324a9678a87de333a71f384ae2d1c6c888f"
+      "amd64": "...",
+      "arm64": "...",
+      "arm": "..."
     }
   },
   "upstream_verify": {
