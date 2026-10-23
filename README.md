@@ -79,7 +79,7 @@ installing it you accept full responsibility for its use.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/upiok/opffk/main/install.sh \
-  | OPFFK_REPO=YOUR-USER/YOUR-REPO sh
+  | OPFFK_REPO=upiok/opffk sh
 ```
 
 The `OPFFK_REPO` variable tells the installer which repository hosts the
