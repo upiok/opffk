@@ -1,0 +1,6 @@
+opffk — OpenFlux exit node for Keenetic (Entware)
+
+Companion deployment for upstream: https://github.com/p1neappleXpress/OpenFlux
+Upstream is (c) p1neappleXpress, GPL-3.0-or-later. This repository ships
+installation and management tooling only; the OpenFlux core binary is built
+and released upstream.

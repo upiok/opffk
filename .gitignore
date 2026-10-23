@@ -1,0 +1,6 @@
+dist/
+*.tar.gz
+*.sha256
+backend/opffk-web
+tests/fakecore/fakecore
+*.log

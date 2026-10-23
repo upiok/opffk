@@ -1,0 +1,74 @@
+name: Release
+
+# Tagging vX.Y.Z builds the release tarballs for all supported
+# architectures (the upstream core is downloaded from the URLs pinned in
+# manifest.json and verified against its SHA-256s) and publishes a GitHub
+# release with per-file .sha256 checksums.
+#
+# Prerequisites once per repository: none beyond Actions defaults — the
+# GITHUB_TOKEN is enough. See docs/PUBLISHING.ru.md for the full flow.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (vX.Y.Z), publish skipped'
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+
+      - name: Version
+        id: version
+        run: |
+          v="${{ inputs.version }}"
+          if [ -z "$v" ] && [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="${GITHUB_REF#refs/tags/}"; fi
+          if [ -z "$v" ]; then echo "::error::no version (tag the commit vX.Y.Z)"; exit 1; fi
+          echo "value=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Build release artifacts
+        run: sh scripts/build.sh --version "${{ steps.version.outputs.value }}" --core download
+
+      - name: Smoke-test the produced release (fake-core e2e)
+        run: sh tests/e2e_smoke.sh
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          cat > release-notes.md <<'NOTES'
+          Установка одной командой (см. предупреждение о `curl | sh` в README):
+
+          ```
+          curl -fsSL https://raw.githubusercontent.com/REPO/main/install.sh | OPFFK_REPO=REPO sh
+          ```
+
+          Замените REPO на ваш OWNER/REPOSITORY. Ядро OpenFlux берётся из
+          manifest.json (версия и SHA-256 закреплены, проверяются при установке).
+          Ручная установка, документация и совместимость — в README.
+          NOTES
+          sed -i "s|REPO/main/install.sh|${GITHUB_REPOSITORY}/main/install.sh|; s|OPFFK_REPO=REPO|OPFFK_REPO=${GITHUB_REPOSITORY}|" release-notes.md
+          gh release create "$VERSION" \
+            dist/opffk-$VERSION-linux-*.tar.gz \
+            dist/opffk-$VERSION-linux-*.tar.gz.sha256 \
+            --title "opffk $VERSION" \
+            --generate-notes \
+            --notes-file release-notes.md

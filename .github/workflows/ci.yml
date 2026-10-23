@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+
+      - name: Static checks
+        run: |
+          cd backend
+          go vet ./...
+          test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+          cd ..
+          for f in install.sh tests/*.sh scripts/*.sh packaging/S99opffk; do sh -n "$f"; done
+
+      - name: Go unit tests
+        run: (cd backend && go test ./...)
+
+      - name: Installer shell tests
+        run: sh tests/installer_test.sh
+
+      - name: Stack e2e (fake core)
+        run: sh tests/e2e_smoke.sh
+
+  tunnel-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+
+      - name: Clone upstream for the real-core test
+        run: git clone --depth 50 https://github.com/p1neappleXpress/OpenFlux /tmp/OpenFlux
+
+      - name: Real-tunnel e2e
+        run: OPFFK_UPSTREAM=/tmp/OpenFlux sh tests/tunnel_e2e.sh

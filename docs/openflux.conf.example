@@ -1,0 +1,100 @@
+# OpenFlux core configuration — reference example
+#
+# This file documents every setting the opffk web UI writes into
+# /opt/etc/opffk/openflux.conf, with safe defaults. The format is the
+# upstream OpenFlux .conf format (INI-like, parsed by upstream conf.go):
+#   - "key = value" lines in [Interface] (top of file, before any section)
+#   - one [Transport <name>] section per carrier
+#   - a value ends at end-of-line, '#' or ';' (so those cannot appear IN a value)
+#
+# The web UI overwrites this file whenever settings are applied. You can
+# hand-edit it and restart (/opt/etc/init.d/S99opffk restart) — hand edits
+# survive until the next apply from the UI.
+
+# ---- [Interface] (keys without a section) ------------------------------------
+
+# Role is fixed to exit for this deployment (opffk manages an exit node).
+Role = exit
+
+# Exit mode:
+#   l4  — userspace TCP/UDP termination and re-dial (gVisor). No root,
+#         works everywhere. This is opffk's supported mode and upstream's
+#         own default for headless nodes.
+#   l3  — kernel SNAT/DNAT forwarding. Faster, but needs root, iptables
+#         (including a scoped outbound-RST drop rule), and conflicts with
+#         Keenetic's own NAT. Rejected by opffk unless allow_l3=true is
+#         set in /opt/etc/opffk/ui.json — see docs/COMPATIBILITY.md.
+Mode = l4
+
+# AES-256-GCM shared secret for the tunnel. Managed by opffk (0600 file,
+# 64 hex chars). Rotate from the web UI; rotation invalidates client links.
+EncryptionKeyFile = /opt/etc/opffk/encryption-key
+
+# Cookie jar for transports that carry login state (yandex, vyandex,
+# mailru, cupsonline, avito). Persisted across restarts.
+CookieStore = /opt/var/lib/opffk/cookies.json
+
+# KDF context override for the encryption key. Leave unset to derive it
+# from the highest-priority transport URL (upstream behavior). If set, it
+# must match on client and exit.
+#URL = https://example.invalid/my-session
+
+# Core debug level: 0 quiet, 1 packet lines, 2 operational logs (default),
+# 3 hexdumps (not offered in the UI; never combined with sensitive logging).
+Debug = 2
+
+# Codec framing: batched (zstd+coalescing, default) or legacy (per-packet).
+Codec = batched
+
+# ---- transports -----------------------------------------------------------------
+#
+# Priority: 1..100, higher is tried first for the handshake and control
+# traffic. The UI convention mirrors upstream's own installer: carriers
+# 100..70, direct as the always-available backup at 50.
+#
+# Every session requires the encryption key; transports without their own
+# URL (direct) need Dial on clients and Listen on the exit.
+
+# Self-hosted TCP carrier — no third-party account involved.
+[Transport direct]
+Type = direct
+Priority = 50
+# Exit side: where clients' connections land. For WAN clients also create
+# a TCP port-forward in the Keenetic web UI yourself.
+Listen = 0.0.0.0:7891
+# Client side (informational; client links carry Dial):
+#Dial = 203.0.113.10:7891
+
+# Yandex.Docs document as a carrier (example; URL must be https):
+#[Transport yandex]
+#Type = yandex
+#Priority = 100
+#URL = https://disk.yandex.ru/i/xxxxxxxxxxxx
+
+# Yandex.Volga relay:
+#[Transport vyandex]
+#Type = vyandex
+#Priority = 100
+#URL = https://disk.yandex.ru/i/xxxxxxxxxxxx
+
+# Mail.ru public document:
+#[Transport mailru]
+#Type = mailru
+#Priority = 90
+#URL = https://cloud.mail.ru/public/xxxxxxxx
+
+# cups.online interview room:
+#[Transport cupsonline]
+#Type = cupsonline
+#Priority = 70
+#URL = https://cupsonline.ru/...
+
+# MAX (VK) — per-account token; never copied into client links:
+#[Transport oneme]
+#Type = oneme
+#Priority = 80
+#Token = eyJ...
+#UID = 1234567890
+
+# Not exposed by the opffk UI in v1 (trust management is out of scope):
+# [Transport script] — signed JS transports, see upstream docs.

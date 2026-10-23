@@ -1,0 +1,101 @@
+#!/bin/sh
+# opffk — OpenFlux exit node for Keenetic (Entware) — init script.
+#
+# Installed by the opffk installer as /opt/etc/init.d/S99opffk and run by
+# Entware's rc.unslung at boot. Start/stop/restart/status are supported.
+# The script only manages the opffk-web backend; the backend itself
+# supervises the openflux core child process.
+#
+# It never touches Keenetic firmware settings (firewall, port forwarding,
+# routing, DNS).
+
+PREFIX="@PREFIX@"
+OPFFK_WEB_BIN="$PREFIX/bin/opffk-web"
+OPFFK_WEB_ARGS=""          # installer bakes -listen/-port overrides here
+RUN_DIR="$PREFIX/var/run"
+PID_FILE="$RUN_DIR/opffk-web.pid"
+LOG_DIR="$PREFIX/var/log/opffk"
+CONSOLE_LOG="$LOG_DIR/console.log"
+
+[ -x "$OPFFK_WEB_BIN" ] || {
+    echo "opffk: $OPFFK_WEB_BIN is missing; reinstall opffk" >&2
+    exit 1
+}
+
+pid_alive() {
+    [ -f "$PID_FILE" ] || return 1
+    _pid=$(cat "$PID_FILE" 2>/dev/null)
+    [ -n "$_pid" ] && kill -0 "$_pid" 2>/dev/null
+}
+
+rotate_console_log() {
+    # 1 MB rotation, keep one old copy — enough history, bounded size.
+    if [ -f "$CONSOLE_LOG" ]; then
+        _size=$(wc -c < "$CONSOLE_LOG" 2>/dev/null || echo 0)
+        if [ "${_size:-0}" -gt 1048576 ]; then
+            mv -f "$CONSOLE_LOG" "$CONSOLE_LOG.1"
+        fi
+    fi
+}
+
+start() {
+    if pid_alive; then
+        echo "opffk: already running (pid $(cat "$PID_FILE"))"
+        return 0
+    fi
+    rm -f "$PID_FILE"
+    mkdir -p "$LOG_DIR" "$RUN_DIR"
+    rotate_console_log
+    echo "opffk: starting opffk-web"
+    # nohup + & so rc.unslung continues; stdout/err land in the console log
+    # until the backend opens its own logs.
+    nohup "$OPFFK_WEB_BIN" $OPFFK_WEB_ARGS >> "$CONSOLE_LOG" 2>&1 &
+    echo $! > "$PID_FILE"
+    sleep 1
+    if pid_alive; then
+        echo "opffk: started (pid $(cat "$PID_FILE"))"
+        return 0
+    fi
+    echo "opffk: failed to start; see $CONSOLE_LOG" >&2
+    return 1
+}
+
+stop() {
+    if ! pid_alive; then
+        rm -f "$PID_FILE"
+        echo "opffk: not running"
+        return 0
+    fi
+    _pid=$(cat "$PID_FILE")
+    echo "opffk: stopping (pid $_pid)"
+    kill "$_pid" 2>/dev/null
+    _i=0
+    while kill -0 "$_pid" 2>/dev/null && [ "$_i" -lt 20 ]; do
+        sleep 0.5
+        _i=$((_i+1))
+    done
+    if kill -0 "$_pid" 2>/dev/null; then
+        echo "opffk: sending SIGKILL" >&2
+        kill -9 "$_pid" 2>/dev/null
+    fi
+    rm -f "$PID_FILE"
+    echo "opffk: stopped"
+    return 0
+}
+
+status() {
+    if pid_alive; then
+        echo "opffk: running (pid $(cat "$PID_FILE"))"
+        return 0
+    fi
+    echo "opffk: stopped"
+    return 1
+}
+
+case "${1:-}" in
+    start|"") start ;;
+    stop) stop ;;
+    restart) stop; start ;;
+    status) status ;;
+    *) echo "usage: $0 {start|stop|restart|status}" >&2; exit 2 ;;
+esac

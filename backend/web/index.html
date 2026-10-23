@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>opffk — OpenFlux exit node</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<!-- ======== login ======== -->
+<div id="view-login" class="center-wrap hidden">
+  <form id="login-form" class="card login-card" method="post" action="/login">
+    <h1>opffk</h1>
+    <p class="muted">OpenFlux exit node management</p>
+    <label for="login-password">Password</label>
+    <input type="password" id="login-password" name="password" autocomplete="current-password" required autofocus>
+    <button type="submit" id="login-submit">Sign in</button>
+    <p id="login-error" class="error hidden" role="alert"></p>
+    <p class="muted small">The initial password is printed once by the installer.</p>
+  </form>
+</div>
+
+<!-- ======== app ======== -->
+<div id="view-app" class="hidden">
+  <header>
+    <div class="brand">opffk <span class="muted" id="hdr-version"></span></div>
+    <div class="hdr-actions">
+      <span id="hdr-badge" class="badge"></span>
+      <form id="logout-form" method="post" action="/logout"><input type="hidden" name="csrf_token" id="logout-csrf"><button type="submit" class="ghost">Log out</button></form>
+    </div>
+  </header>
+
+  <main>
+    <!-- status -->
+    <section class="card" id="card-status">
+      <div class="card-head"><h2>Status</h2>
+        <div class="btn-row">
+          <button id="btn-start" class="ghost">Start</button>
+          <button id="btn-stop" class="ghost">Stop</button>
+          <button id="btn-restart" class="ghost">Restart</button>
+        </div>
+      </div>
+      <div class="grid" id="status-grid"></div>
+      <p id="status-note" class="muted small"></p>
+    </section>
+
+    <!-- configuration -->
+    <section class="card" id="card-config">
+      <div class="card-head"><h2>Configuration</h2>
+        <div class="btn-row">
+          <button id="btn-config-save">Apply</button>
+          <button id="btn-config-save-restart" class="ghost">Apply &amp; restart</button>
+        </div>
+      </div>
+      <p class="muted small">Values are validated against the pinned upstream OpenFlux rules before anything is written. The core config lives at <code id="p-conf"></code>.</p>
+      <div id="config-errors" class="error hidden" role="alert"></div>
+      <div class="form-grid">
+        <label for="cfg-mode">Exit mode</label>
+        <select id="cfg-mode">
+          <option value="l4">l4 — userspace (gVisor), no root, supported</option>
+          <option value="l3">l3 — kernel forwarding (root, iptables; experimental)</option>
+        </select>
+        <label for="cfg-codec">Codec</label>
+        <select id="cfg-codec">
+          <option value="batched">batched (zstd, default)</option>
+          <option value="legacy">legacy (per-packet LZ4)</option>
+        </select>
+        <label for="cfg-debug">Core debug level</label>
+        <select id="cfg-debug">
+          <option value="0">0 — quiet</option>
+          <option value="1">1 — packet lines</option>
+          <option value="2">2 — operational logs (recommended)</option>
+        </select>
+        <label for="cfg-context">Session context (optional)</label>
+        <input type="text" id="cfg-context" placeholder="leave empty to derive from transports">
+        <label>Transports</label>
+        <div id="transport-list" class="transport-list"></div>
+        <label></label>
+        <button id="btn-t-add" class="ghost small-btn">+ Add transport</button>
+      </div>
+    </section>
+
+    <!-- client link -->
+    <section class="card" id="card-link">
+      <h2>Client link</h2>
+      <p class="muted small">Generate an <code>openflux://</code> link for client apps. The link <strong>contains the encryption key</strong> — treat it like a password and share it over a trusted channel only. Generating a new key invalidates every existing client link.</p>
+      <div class="form-grid">
+        <label for="link-host">Public address clients dial</label>
+        <input type="text" id="link-host" placeholder="e.g. 203.0.113.10 (router WAN address; set up port forwarding yourself)">
+        <label></label>
+        <div class="btn-row">
+          <button id="btn-link">Generate link</button>
+          <button id="btn-key-rotate" class="ghost">Rotate encryption key</button>
+        </div>
+      </div>
+      <div id="link-result" class="hidden">
+        <textarea id="link-text" readonly rows="3"></textarea>
+        <div class="btn-row"><button id="btn-link-copy" class="ghost small-btn">Copy</button></div>
+      </div>
+      <p id="link-error" class="error hidden" role="alert"></p>
+    </section>
+
+    <!-- updates -->
+    <section class="card" id="card-update">
+      <div class="card-head"><h2>Core updates</h2>
+        <div class="btn-row">
+          <button id="btn-update-check" class="ghost">Check</button>
+          <button id="btn-update-apply">Update</button>
+          <button id="btn-update-rollback" class="ghost">Roll back</button>
+        </div>
+      </div>
+      <p class="muted small">Updates download the pinned upstream core (<code id="p-core"></code>), verify its SHA-256 against the signed-in manifest, restart the service and roll back automatically if the new core does not come up healthy. Backend updates: re-run <code>install.sh upgrade</code> over SSH.</p>
+      <p id="update-result" class="muted"></p>
+    </section>
+
+    <!-- logs -->
+    <section class="card" id="card-logs">
+      <div class="card-head"><h2>Recent core logs</h2>
+        <div class="btn-row">
+          <label class="chk"><input type="checkbox" id="logs-auto"> auto</label>
+          <button id="btn-logs-refresh" class="ghost small-btn">Refresh</button>
+        </div>
+      </div>
+      <pre id="logs-view" class="logs"></pre>
+    </section>
+
+    <!-- settings -->
+    <section class="card" id="card-settings">
+      <h2>Settings</h2>
+      <div class="form-grid">
+        <label for="pw-current">Current password</label>
+        <input type="password" id="pw-current" autocomplete="current-password">
+        <label for="pw-new">New password (10+ chars)</label>
+        <input type="password" id="pw-new" autocomplete="new-password">
+        <label></label>
+        <button id="btn-password">Change password</button>
+      </div>
+      <p id="password-result" class="muted"></p>
+    </section>
+
+    <!-- uninstall -->
+    <section class="card danger" id="card-uninstall">
+      <h2>Uninstall</h2>
+      <p class="muted small">Creates a configuration backup, stops the core and removes binaries and configuration. A backup is kept at <code>var/lib/opffk</code>. Type <strong>UNINSTALL</strong> to confirm.</p>
+      <div class="btn-row">
+        <input type="text" id="uninstall-confirm" placeholder="UNINSTALL">
+        <button id="btn-uninstall" class="danger-btn">Uninstall</button>
+      </div>
+      <p id="uninstall-result" class="muted"></p>
+    </section>
+  </main>
+
+  <footer><span class="muted small" id="ftr-note"></span></footer>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
