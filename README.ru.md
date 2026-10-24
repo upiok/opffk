@@ -186,9 +186,9 @@ sh install.sh reset-password  # новый одноразовый пароль �
 
 ## Тесты
 Тест проводился на роутере KN-4110 с настройками: 
-Exit mode: l4
-Codec:codec
-Transports:boards
+Exit mode: l4 
+Codec: legacy 
+Transports:boards 
 Скорость удручает , но хватает на мессенджеры (тг)
 
 ## Лицензия / авторство
