@@ -155,13 +155,22 @@ func (app *App) handleIndex(w http.ResponseWriter, r *http.Request, sess *sessio
 		jsonErr(w, http.StatusNotFound, "not found")
 		return
 	}
+	app.serveIndex(w)
+}
+
+// serveIndex writes the app page with the asset URLs stamped by the
+// backend version (?v=…), so a browser can never mix an old cached
+// app.js/style.css with a freshly updated backend.
+func (app *App) serveIndex(w http.ResponseWriter) {
 	data, err := webFS.ReadFile("web/index.html")
 	if err != nil {
 		jsonErr(w, http.StatusInternalServerError, "index missing")
 		return
 	}
+	html := strings.ReplaceAll(string(data), "app.js", "app.js?v="+version)
+	html = strings.ReplaceAll(html, "style.css", "style.css?v="+version)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write(data)
+	_, _ = w.Write([]byte(html))
 }
 
 func (app *App) serveStatic(name, ctype string) http.HandlerFunc {
@@ -216,11 +225,7 @@ func (app *App) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/", http.StatusSeeOther)
 			return
 		}
-		data, err := webFS.ReadFile("web/index.html")
-		if err != nil {
-			jsonErr(w, http.StatusInternalServerError, "index missing")
-			return
-		}
+		app.serveIndex(w)
 		tok := app.newLoginToken()
 		if tok != "" {
 			http.SetCookie(w, &http.Cookie{
@@ -228,8 +233,6 @@ func (app *App) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 				HttpOnly: true, SameSite: http.SameSiteStrictMode,
 			})
 		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write(data)
 		return
 	case http.MethodPost:
 	default:
