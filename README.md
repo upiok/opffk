@@ -72,10 +72,6 @@ installing it you accept full responsibility for its use.
 
 ### One command
 
-> **Security warning — read this.** Piping a shell script from the internet
-> into `sh` executes code before you (or anyone) has looked at it. Inspect
-> the script first, or use the manual method below. Do not pipe untrusted
-> URLs.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/upiok/opffk/main/install.sh \
