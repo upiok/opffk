@@ -225,7 +225,7 @@ func (app *App) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/", http.StatusSeeOther)
 			return
 		}
-		app.serveIndex(w)
+		// headers (the pre-login cookie) must go out before the body
 		tok := app.newLoginToken()
 		if tok != "" {
 			http.SetCookie(w, &http.Cookie{
@@ -233,6 +233,7 @@ func (app *App) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 				HttpOnly: true, SameSite: http.SameSiteStrictMode,
 			})
 		}
+		app.serveIndex(w)
 		return
 	case http.MethodPost:
 	default:
