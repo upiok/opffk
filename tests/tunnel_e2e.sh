@@ -31,6 +31,9 @@ HOSTIP=$(hostname -I 2>/dev/null | awk '{print $1}')
 HTTPPID=""
 cleanup() {
     [ -n "$HTTPPID" ] && kill "$HTTPPID" 2>/dev/null || true
+    [ -n "${CLIENTPID2:-}" ] && kill "$CLIENTPID2" 2>/dev/null || true
+    [ -n "${HTTPPID2:-}" ] && kill "$HTTPPID2" 2>/dev/null || true
+    [ -n "${STUBPID:-}" ] && kill "$STUBPID" 2>/dev/null || true
     [ -f "$SBX/var/run/opffk-web.pid" ] && kill "$(cat "$SBX/var/run/opffk-web.pid")" 2>/dev/null || true
     pkill -f "of-tunnel-core" 2>/dev/null || true
     if [ "${OPFFK_KEEP:-0}" = "1" ]; then
@@ -56,6 +59,15 @@ rm -rf "$WORK/upstream/.git"
 echo "[tunnel] building backend"
 (cd "$ROOT_DIR/backend" && CGO_ENABLED=0 "$GO" build -buildvcs=false -ldflags "-X main.version=tunnel-e2e" -o "$WORK/opffk-web" .)
 
+# The egress-proxy section needs the fork core (upstream has no such
+# feature); skip it gracefully against a stock upstream checkout.
+HAVE_EGRESS=0
+grep -q "egress-proxy" "$WORK/upstream/main.go" && HAVE_EGRESS=1
+if [ "$HAVE_EGRESS" = 1 ]; then
+    echo "[tunnel] building socks5 stub (fork core detected: egress-proxy available)"
+    (cd "$ROOT_DIR/tests/socks5stub" && CGO_ENABLED=0 "$GO" build -o "$WORK/socks5stub" .)
+fi
+
 # ---- local HTTP server as the tunnel's destination -------------------------------
 
 python3 - "$HTTP_PORT" > "$WORK/http.log" 2>&1 <<'EOF' &
@@ -68,6 +80,7 @@ class H(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
     def log_message(self, *a): pass
+socketserver.TCPServer.allow_reuse_address = True
 with socketserver.TCPServer(("0.0.0.0", int(sys.argv[1])), H) as srv:
     srv.serve_forever()
 EOF
@@ -152,5 +165,62 @@ fi
 
 kill $CLIENTPID 2>/dev/null || true
 kill $HTTPPID 2>/dev/null || true
+
+# ---- egress through a SOCKS5 proxy (fork core only) ------------------------------
+
+if [ "$HAVE_EGRESS" = 1 ]; then
+    # phase 1 stopped the HTTP server and the client; bring both back for
+    # the egress leg.
+    python3 - "$HTTP_PORT" > "$WORK/http2.log" 2>&1 <<'PYEOF' &
+import http.server, socketserver, sys
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        body = b"THROUGH-THE-TUNNEL"
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+    def log_message(self, *a): pass
+socketserver.TCPServer.allow_reuse_address = True
+with socketserver.TCPServer(("0.0.0.0", int(sys.argv[1])), H) as srv:
+    srv.serve_forever()
+PYEOF
+    HTTPPID2=$!
+    STUB_PORT=18997
+    nohup "$WORK/socks5stub" "127.0.0.1:$STUB_PORT" > "$WORK/stub.log" 2>&1 &
+    STUBPID=$!
+    sleep 0.5
+
+    # Restart the exit BEFORE starting the client: a client that connected
+    # before the restart keeps a stale session (upstream re-handshakes on
+    # reconnect only via the app layer), so phase 1's proven order is
+    # config-apply first, client second.
+    CFG="{\"settings\":{\"mode\":\"l4\",\"codec\":\"batched\",\"debug\":2,\"egress_proxy\":\"socks5://127.0.0.1:$STUB_PORT\",\"transports\":[{\"type\":\"direct\",\"priority\":50,\"listen\":\"127.0.0.1:$EXIT_PORT\"}]},\"restart\":true}"
+    RES=$(curl -sS -b "$COOKIES" -X POST -H "X-Opffk-CSRF: $CSRF" -H "Content-Type: application/json" \
+        -d "$CFG" "http://127.0.0.1:$WEB_PORT/api/config")
+    echo "$RES" | grep -q '"ok":true' || fail "egress config apply failed: $RES"
+    pass "exit restarted with EgressProxy = socks5 stub"
+
+    nohup "$WORK/of-tunnel-core" \
+        --role=client --inbound=socks5 --socks5="127.0.0.1:$CLIENT_PORT" \
+        --transport=direct --direct-dial="127.0.0.1:$EXIT_PORT" \
+        --encryption-key-file="$WORK/client.key" \
+        -dd > "$WORK/client2.log" 2>&1 &
+    CLIENTPID2=$!
+    sleep 3
+
+    BODY=$(curl -fsS --max-time 20 --socks5-hostname "127.0.0.1:$CLIENT_PORT" "http://$HOSTIP:$HTTP_PORT/" 2>"$WORK/curl2.err" || true)
+    if [ "$BODY" = "THROUGH-THE-TUNNEL" ] && grep -q "CONNECT $HOSTIP:$HTTP_PORT" "$WORK/stub.log"; then
+        pass "HTTP request left the exit THROUGH the SOCKS5 egress proxy (stub saw and forwarded it)"
+    else
+        echo "---- stub log ----" >&2; cat "$WORK/stub.log" >&2
+        echo "---- core log tail ----" >&2; tail -15 "$SBX/var/log/opffk/core.log" >&2
+        fail "egress proxy path failed (body='$BODY')"
+    fi
+    kill $STUBPID $CLIENTPID2 $HTTPPID2 2>/dev/null || true
+else
+    echo "[tunnel] egress-proxy section SKIPPED: source has no egress-proxy (stock upstream)"
+fi
+
 echo
 echo "[tunnel] REAL TUNNEL E2E PASSED"

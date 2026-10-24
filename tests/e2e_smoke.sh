@@ -190,6 +190,13 @@ echo "$RES" | grep -q '"ok":false' || fail "invalid config accepted"
 grep -q "Listen = 0.0.0.0:17891" "$SBX/etc/opffk/openflux.conf" || fail "invalid apply modified the config"
 pass "invalid config rejected without touching the file"
 
+# egress proxy setting round-trip: validated, persisted, rendered into
+# the upstream conf format
+RES=$(POST '{"settings":{"mode":"l4","codec":"batched","debug":2,"egress_proxy":"socks5://user:pass@10.0.0.1:1080","transports":[{"type":"direct","priority":50,"listen":"0.0.0.0:17891"}]},"restart":false}' 'config')
+echo "$RES" | grep -q '"ok":true' || fail "egress config rejected: $RES"
+grep -q "EgressProxy = socks5://user:pass@10.0.0.1:1080" "$SBX/etc/opffk/openflux.conf" || fail "EgressProxy line missing from core config"
+pass "egress proxy setting validated and written to the core config"
+
 # client link generation through the core's --make-link contract
 RES=$(JAR -X POST -H "X-Opffk-CSRF: $CSRF" -H "Content-Type: application/x-www-form-urlencoded" \
     -d "share_host=203.0.113.10" "http://127.0.0.1:$PORT/api/link")

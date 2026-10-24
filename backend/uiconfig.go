@@ -49,6 +49,9 @@ type OpenFluxSettings struct {
 	Debug      int                `json:"debug"` // 0..2 (3 = hexdumps, rejected)
 	// SessionContext overrides the KDF context; "" lets the core derive it.
 	SessionContext string `json:"session_context,omitempty"`
+	// EgressProxy routes the exit's TCP re-dial through a SOCKS5/HTTP
+	// proxy (fork-core feature, node-v1.4.0-opffk.1+). "" dials directly.
+	EgressProxy string `json:"egress_proxy,omitempty"`
 }
 
 type TransportSetting struct {

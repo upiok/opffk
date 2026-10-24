@@ -91,6 +91,11 @@ curl -fsSL https://raw.githubusercontent.com/upiok/opffk/main/install.sh \
 - **Режим ноды**: `l4` (userspace gVisor — поддерживается, root не нужен).
   `l3` существует в апстриме, но заблокирован: требует root, iptables и
   явного `allow_l3` в `ui.json`, и конфликтует с собственным NAT Keenetic.
+- **Egress-прокси** (возможность ядра форка): исходящий TCP ноды идёт
+  через ваш SOCKS5/HTTP-прокси (URL в поле *Egress proxy*). Только TCP —
+  UDP отклоняется, пока прокси задан (клиенты уходят в DNS по TCP).
+  Работает только с `l4`. Появилось в сборке ядра
+  `node-v1.4.0-opffk.1`; в апстриме такой возможности нет.
 - **Транспорты**: `direct` (свой сервер, работает всегда, рекомендуемый
   первый) плюс типыcarrier'ов, которые поддерживает апстрим (`yandex`,
   `vyandex`, `mailru`, `cupsonline`, `boards`, `avito`, `telemost`,

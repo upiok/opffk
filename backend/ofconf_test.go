@@ -113,6 +113,73 @@ func TestValidateSettingsRejects(t *testing.T) {
 	}
 }
 
+func TestValidateEgressProxy(t *testing.T) {
+	good := []string{
+		"socks5://10.0.0.1:1080",
+		"socks5://user:pass@10.0.0.1:1080",
+		"http://proxy.lan:3128",
+		"http://user:p%40ss@192.168.1.46:3128",
+	}
+	for _, g := range good {
+		st := validBaseSettings()
+		st.EgressProxy = g
+		if errs := ValidateSettings(&st, false); len(errs) != 0 {
+			t.Errorf("egress %q rejected: %v", g, errs)
+		}
+	}
+	bad := map[string]string{
+		"ftp://h:1":            "scheme",
+		"https://h:1":          "scheme",
+		"socks5://h":           "host:port",
+		"socks5://h:0":         "out of range",
+		"socks5://h:99999":     "out of range",
+		"socks5://h:1#comment": "invalid characters",
+	}
+	for b, want := range bad {
+		st := validBaseSettings()
+		st.EgressProxy = b
+		errs := ValidateSettings(&st, false)
+		found := false
+		for _, e := range errs {
+			if strings.Contains(e, "egress proxy") && strings.Contains(e, want) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("egress %q: expected error with %q, got %v", b, want, errs)
+		}
+	}
+	// l3 + egress is a conflict
+	st := validBaseSettings()
+	st.Mode = "l3"
+	st.EgressProxy = "socks5://10.0.0.1:1080"
+	errs := ValidateSettings(&st, true)
+	if len(errs) == 0 || !strings.Contains(strings.Join(errs, " "), "l3") {
+		t.Errorf("l3+egress conflict not reported: %v", errs)
+	}
+}
+
+func TestWriteCoreConfigEgressLine(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("OPFFK_ROOT", dir)
+	p := NewPaths()
+	if err := p.EnsureDirs(); err != nil {
+		t.Fatal(err)
+	}
+	st := validBaseSettings()
+	st.EgressProxy = "socks5://user:pass@10.0.0.1:1080"
+	if errs := ValidateSettings(&st, false); len(errs) != 0 {
+		t.Fatalf("settings invalid: %v", errs)
+	}
+	if err := WriteCoreConfig(p, &st); err != nil {
+		t.Fatal(err)
+	}
+	conf := miniParseConf(t, p.ConfFile())
+	if conf[""]["EgressProxy"] != "socks5://user:pass@10.0.0.1:1080" {
+		t.Errorf("EgressProxy line missing/wrong: %q", conf[""]["EgressProxy"])
+	}
+}
+
 func TestValidateSettingsL3Allowed(t *testing.T) {
 	s := validBaseSettings()
 	s.Mode = "l3"

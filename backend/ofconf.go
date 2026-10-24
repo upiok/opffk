@@ -96,6 +96,39 @@ func validHostname(h string) bool {
 	return true
 }
 
+// validateEgressProxy checks an --egress-proxy URL against what the
+// fork core accepts: socks5:// or http://, host:port, optional
+// user:pass@. The value goes into the .conf file, so it must also be
+// conf-safe (no '#', ';', newlines — such characters cannot appear in a
+// proxy password set through the UI).
+func validateEgressProxy(s string) error {
+	if !confSafe(s) {
+		return fmt.Errorf("contains invalid characters (a proxy password cannot contain # or ; here)")
+	}
+	if len(s) > 512 {
+		return fmt.Errorf("too long")
+	}
+	u, err := url.Parse(s)
+	if err != nil {
+		return fmt.Errorf("not a valid URL")
+	}
+	switch u.Scheme {
+	case "socks5", "socks5h", "http":
+	default:
+		return fmt.Errorf("scheme %q: want socks5 or http", u.Scheme)
+	}
+	if u.Hostname() == "" || u.Port() == "" {
+		return fmt.Errorf("want host:port")
+	}
+	if n, err := strconv.Atoi(u.Port()); err != nil || n < 1 || n > 65535 {
+		return fmt.Errorf("port %q out of range", u.Port())
+	}
+	if u.Hostname() != "localhost" && net.ParseIP(u.Hostname()) == nil && !validHostname(u.Hostname()) {
+		return fmt.Errorf("host %q is not an IP or hostname", u.Hostname())
+	}
+	return nil
+}
+
 // validate_key_hex accepts exactly 64 hex characters — the shape upstream's
 // node-install.sh writes for channel keys (32 random bytes).
 func validate_key_hex(s string) bool {
@@ -160,6 +193,15 @@ func ValidateSettings(s *OpenFluxSettings, allowL3 bool) []string {
 
 	if s.SessionContext != "" && !confSafe(s.SessionContext) {
 		add("session context contains invalid characters")
+	}
+
+	if s.EgressProxy != "" {
+		if err := validateEgressProxy(s.EgressProxy); err != nil {
+			add("egress proxy: %v", err)
+		}
+		if s.Mode == "l3" {
+			add("egress proxy cannot work in l3 mode (raw-socket SNAT has no proxy path); use l4")
+		}
 	}
 
 	if len(s.Transports) == 0 {
@@ -233,6 +275,9 @@ func WriteCoreConfig(p *Paths, s *OpenFluxSettings) error {
 	fmt.Fprintf(&b, "CookieStore = %s\n", p.CookieStore())
 	if s.SessionContext != "" {
 		fmt.Fprintf(&b, "URL = %s\n", s.SessionContext)
+	}
+	if s.EgressProxy != "" {
+		fmt.Fprintf(&b, "EgressProxy = %s\n", s.EgressProxy)
 	}
 	fmt.Fprintf(&b, "Debug = %d\n", s.Debug)
 	switch s.Codec {

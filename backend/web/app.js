@@ -127,6 +127,14 @@ function renderStatus(st) {
   $("btn-restart").disabled = !st.running;
 }
 
+function updatePriorityVisibility() {
+  // Priority only matters with two or more transports: hide the input
+  // (and its noise) while there is exactly one.
+  var rows = document.querySelectorAll("#transport-list .transport");
+  var show = rows.length >= 2;
+  rows.forEach(function (row) { row._fields.pri.style.display = show ? "" : "none"; });
+}
+
 function transportRow(t) {
   var div = document.createElement("div");
   div.className = "transport";
@@ -153,7 +161,7 @@ function transportRow(t) {
 
   var del = document.createElement("button");
   del.type = "button"; del.className = "ghost small-btn"; del.textContent = "✕";
-  del.addEventListener("click", function () { div.remove(); });
+  del.addEventListener("click", function () { div.remove(); updatePriorityVisibility(); });
 
   function syncFields() {
     var ty = sel.value;
@@ -175,11 +183,14 @@ function renderConfig(cfg) {
   $("cfg-codec").value = cfg.openflux.codec || "batched";
   $("cfg-debug").value = String(cfg.openflux.debug == null ? 2 : cfg.openflux.debug);
   $("cfg-context").value = cfg.openflux.session_context || "";
+  $("cfg-egress").value = cfg.openflux.egress_proxy || "";
+  $("l3-note").style.display = ($("cfg-mode").value === "l3") ? "" : "none";
   var list = $("transport-list");
   list.textContent = "";
   (cfg.openflux.transports || []).forEach(function (t) {
     list.appendChild(transportRow(t));
   });
+  updatePriorityVisibility();
   var sel = $("cfg-mode");
   var l3opt = sel.querySelector('option[value="l3"]');
   if (l3opt) l3opt.disabled = !cfg.allow_l3;
@@ -201,6 +212,7 @@ function readConfigFromForm() {
     codec: $("cfg-codec").value,
     debug: parseInt($("cfg-debug").value, 10) || 0,
     session_context: $("cfg-context").value.trim(),
+    egress_proxy: $("cfg-egress").value.trim(),
     transports: transports
   };
 }
@@ -254,6 +266,12 @@ function refreshState() {
 function post(path, body) { return api(path, { method: "POST", body: body || {} }); }
 
 function bindApp() {
+  $("cfg-mode").addEventListener("change", function () {
+    $("l3-note").style.display = ($("cfg-mode").value === "l3") ? "" : "none";
+  });
+  $("cfg-egress").addEventListener("input", function () {
+    // visual hint only; real validation happens server-side on Apply
+  });
   $("btn-start").addEventListener("click", function () {
     post("/api/service/start").then(refreshState);
   });
@@ -269,6 +287,7 @@ function bindApp() {
 
   $("btn-t-add").addEventListener("click", function () {
     $("transport-list").appendChild(transportRow({ type: "direct", priority: 50 }));
+    updatePriorityVisibility();
   });
 
   $("btn-link").addEventListener("click", function () {

@@ -46,8 +46,8 @@ jobs:
         with:
           go-version-file: backend/go.mod
 
-      - name: Clone upstream for the real-core test
-        run: git clone --depth 50 https://github.com/p1neappleXpress/OpenFlux /tmp/OpenFlux
+      - name: Clone the fork core (egress-proxy branch) for the real-core test
+        run: git clone --depth 5 --branch opffk-egress https://github.com/upiok/OpenFlux /tmp/OpenFlux
 
       - name: Real-tunnel e2e
         run: OPFFK_UPSTREAM=/tmp/OpenFlux sh tests/tunnel_e2e.sh

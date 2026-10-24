@@ -4,3 +4,4 @@ dist/
 backend/opffk-web
 tests/fakecore/fakecore
 *.log
+backend/backend

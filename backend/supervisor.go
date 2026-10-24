@@ -62,6 +62,18 @@ func (s *supervisor) Start() error {
 		s.mu.Unlock()
 		return fmt.Errorf("core config %s is missing — apply the settings first", s.paths.ConfFile())
 	}
+	// l3 uses raw sockets (IPPROTO_RAW + raw TCP/UDP/ICMP) and needs root
+	// or CAP_NET_RAW. The backend drops privileges when run_as is set, so
+	// an l3 start under a dropped backend can only fail — refuse with the
+	// exact fix instead.
+	if cfg, err := LoadUIConfig(s.paths); err == nil && cfg.OpenFlux.Mode == "l3" {
+		if !TestMode() && os.Geteuid() != 0 {
+			s.mu.Unlock()
+			return errors.New("l3 mode needs root or CAP_NET_RAW: set \"run_as\": \"\" in ui.json " +
+				"and restart the backend (/opt/etc/init.d/S99opffk restart); " +
+				"see docs/COMPATIBILITY.md for the l3 caveats")
+		}
+	}
 
 	cmd := exec.Command(s.paths.CoreBin,
 		"--config", s.paths.ConfFile(),

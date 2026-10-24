@@ -77,6 +77,11 @@ web layer. Log values are displayed as text only.
 
 - `encryption-key`: 32 random bytes, hex, in its own 0600 file. Rotation
   is explicit (UI button) and invalidates client links.
+- The egress proxy URL may contain `user:pass@` credentials; it is
+  written to `openflux.conf` (0640) and shown masked in logs (the core
+  prints only the scheme). A proxy password containing `#` or `;` cannot
+  be entered from the web UI (the conf format ends values there) — this
+  is a documented format limit, not an escaping bug.
 - `openflux://` links contain the key by design (upstream behavior). The
   UI shows them only on an explicit action and labels them as secrets.
 - Logs never include the key: the core is never run with `--sensitive`

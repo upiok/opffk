@@ -304,11 +304,12 @@ type stateResponse struct {
 }
 
 type platformInfo struct {
-	GOOS     string `json:"goos"`
-	GOARCH   string `json:"goarch"`
-	UnameM   string `json:"uname_m"`
-	TestMode bool   `json:"test_mode"`
-	Root     string `json:"root"`
+	GOOS        string `json:"goos"`
+	GOARCH      string `json:"goarch"`
+	UnameM      string `json:"uname_m"`
+	TestMode    bool   `json:"test_mode"`
+	Root        string `json:"root"`
+	BackendRoot bool   `json:"backend_root"`
 }
 
 func (app *App) handleState(w http.ResponseWriter, r *http.Request, sess *session) {
@@ -319,7 +320,7 @@ func (app *App) handleState(w http.ResponseWriter, r *http.Request, sess *sessio
 		Logs:     app.log.tail(120),
 		CSRF:     sess.csrfToken,
 		HasKey:   fileExists(app.paths.KeyFile()),
-		Platform: platformInfo{GOOS: runtime.GOOS, GOARCH: runtime.GOARCH, UnameM: hostUnameM(), TestMode: TestMode(), Root: app.paths.Root},
+		Platform: platformInfo{GOOS: runtime.GOOS, GOARCH: runtime.GOARCH, UnameM: hostUnameM(), TestMode: TestMode(), Root: app.paths.Root, BackendRoot: os.Geteuid() == 0},
 		Paths: map[string]string{
 			"conf": app.paths.ConfFile(),
 			"key":  app.paths.KeyFile(),

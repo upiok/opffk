@@ -74,6 +74,15 @@
         </select>
         <label for="cfg-context">Session context (optional)</label>
         <input type="text" id="cfg-context" placeholder="leave empty to derive from transports">
+        <label for="cfg-egress">Egress proxy (l4 only)</label>
+        <input type="text" id="cfg-egress" placeholder="socks5://user:pass@host:port or http://… — empty = dial directly">
+        <div id="l3-note" class="muted small" style="grid-column:1/-1; display:none">
+          <strong>l3 caveats:</strong> needs root or CAP_NET_RAW (set <code>"run_as": ""</code> in
+          <code>ui.json</code> and restart the backend), is experimental on Keenetic (the router's own NAT
+          sees the SNAT'd flows), and cannot use the egress proxy. Upstream also recommends dropping
+          kernel RSTs for the egress IP — run in the Entware shell yourself:<br>
+          <code>iptables -A OUTPUT -p tcp --tcp-flags RST RST -s &lt;egress-ip&gt; -j DROP</code>
+        </div>
         <label>Transports</label>
         <div id="transport-list" class="transport-list"></div>
         <label></label>

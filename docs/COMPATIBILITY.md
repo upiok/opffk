@@ -36,7 +36,7 @@ authoritative and will refuse anything it cannot support.
 | Mode | Tier | Notes |
 |---|---|---|
 | `l4` (gVisor userspace proxy) | **Supported / tested against the real core** | No root needed; upstream's own node installer defaults to it; a full HTTP request was carried through the real l4 exit + SOCKS5 client in `tests/tunnel_e2e.sh` |
-| `l3` (SNAT/DNAT) | **Gated off** | Requires root + iptables + a scoped outbound-RST drop; conflicts with Keenetic's own NAT/firewall and would require firmware settings changes opffk refuses to make. Unlock only by setting `allow_l3: true` in `ui.json` on a device you have verified has root+iptables; **not recommended on Keenetic** |
+| `l3` (raw-socket SNAT) | **Supported, gated, untested on device** | Requires root or CAP_NET_RAW: set `"allow_l3": true` AND `"run_as": ""` in `ui.json`, restart the backend, then select l3. The upstream core does its own userspace SNAT over raw sockets (needs `IPPROTO_RAW`); no iptables changes are made by opffk, but upstream recommends a scoped outbound-RST drop (`iptables -A OUTPUT -p tcp --tcp-flags RST RST -s <egress-ip> -j DROP`) — run it yourself if flows reset. Experimental on Keenetic: the router's own NAT sees the SNAT'd flows. Not verified end-to-end (no root device/dev host). Incompatible with the egress proxy |
 
 ## Transport types (exit side)
 
@@ -46,6 +46,21 @@ authoritative and will refuse anything it cannot support.
 | `yandex`, `vyandex`, `mailru`, `cupsonline`, `boards`, `avito`, `telemost` | **Expected** | Validated per upstream rules (https URL); needs working account cookies/URLs; cookie store persisted under `/opt/var/lib/opffk` |
 | `oneme` (MAX) | **Expected** | Token + UID validated; tokens are per-account (never included in client links) |
 | `script` (signed JS) | **Not exposed in v1** | Upstream supports it; managing script trust from a web UI is a separate review. Can be configured by hand in `openflux.conf` (the backend preserves hand edits until the next UI apply) |
+
+## Egress proxy (fork core feature)
+
+The `node-v1.4.0-opffk.1` core build (branch `opffk-egress` of
+`upiok/OpenFlux`, patch on top of upstream's node-v1.3.1 source) adds
+`EgressProxy` to the core config: the l4 exit re-dials client
+destinations through a SOCKS5 or HTTP CONNECT proxy instead of dialing
+directly. Stock upstream has no such feature. Constraints:
+
+- TCP only — UDP flows are refused while the proxy is set (a direct UDP
+  dial would bypass the proxy); plain DNS clients fall back to TCP.
+- Never with `l3` (raw-socket SNAT has no proxy path).
+- Verified end-to-end with the real core in `tests/tunnel_e2e.sh`: a
+  request that left the exit demonstrably passed through a local SOCKS5
+  stub (which logged the CONNECT and forwarded it).
 
 ## Known limitations
 

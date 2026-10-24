@@ -87,6 +87,11 @@ routing or DNS settings — see [docs/SECURITY.md](docs/SECURITY.md).
 - **Exit mode**: `l4` (userspace gVisor — supported, no root needed).
   `l3` exists upstream but is gated off: it needs root, iptables and an
   explicit `allow_l3` in `ui.json`, and conflicts with Keenetic's own NAT.
+- **Egress proxy** (fork core feature): route the exit's outbound TCP
+  through your own SOCKS5/HTTP proxy (`socks5://`/`http://` URL in
+  *Egress proxy*). TCP only — UDP is refused while set, so clients fall
+  back to TCP DNS. Works with `l4` only. Comes from the
+  `node-v1.4.0-opffk.1` core build; stock upstream has no such feature.
 - **Transports**: `direct` (self-hosted, always works, recommended first)
   plus the carrier types upstream supports (`yandex`, `vyandex`, `mailru`,
   `cupsonline`, `boards`, `avito`, `telemost`, `oneme`). At least one
