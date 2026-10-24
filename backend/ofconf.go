@@ -204,9 +204,10 @@ func ValidateSettings(s *OpenFluxSettings, allowL3 bool) []string {
 		}
 	}
 
-	if len(s.Transports) == 0 {
-		add("at least one transport is required")
-	}
+	// Zero transports is valid: it means "no node configured" — the core
+	// is stopped, the config file and cookie store are cleared, and the UI
+	// goes back to the "Add server" state. The supervisor refuses to start
+	// a core without transports.
 	seen := map[string]bool{}
 	for i, t := range s.Transports {
 		label := fmt.Sprintf("transport #%d", i+1)

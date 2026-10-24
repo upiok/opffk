@@ -101,6 +101,18 @@ func (r *logRing) tail(n int) []string {
 	return out
 }
 
+// clear drops every buffered line and truncates the file — used when the
+// core restarts or the node is deleted, so a fresh view starts fresh.
+func (r *logRing) clear() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.lines = nil
+	if r.file != nil {
+		_ = r.file.Truncate(0)
+		r.written = 0
+	}
+}
+
 func (r *logRing) close() {
 	r.mu.Lock()
 	defer r.mu.Unlock()

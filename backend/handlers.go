@@ -382,12 +382,28 @@ func (app *App) handleConfig(w http.ResponseWriter, r *http.Request, sess *sessi
 		return
 	}
 
-	// Persist settings, then render the core config from them.
+	// Persist settings.
 	app.cfg.OpenFlux = req.Settings
 	if err := app.cfg.Save(app.paths); err != nil {
 		jsonErr(w, http.StatusInternalServerError, "save ui.json: "+err.Error())
 		return
 	}
+
+	// Zero transports = the node was deleted from the UI: stop the core,
+	// drop its config, cookie store and logs — back to "Add server".
+	if len(req.Settings.Transports) == 0 {
+		if err := app.sup.Stop(); err != nil {
+			app.log.write("config: node deleted; core stop: " + err.Error())
+		}
+		for _, f := range []string{app.paths.ConfFile(), app.paths.CookieStore()} {
+			_ = os.Remove(f)
+		}
+		app.log.clear()
+		app.log.write("config: node deleted via web UI (config, cookies and logs cleared)")
+		jsonOK(w, map[string]interface{}{"ok": true, "restart_error": ""})
+		return
+	}
+
 	if err := WriteCoreConfig(app.paths, &req.Settings); err != nil {
 		jsonErr(w, http.StatusInternalServerError, "write core config: "+err.Error())
 		return

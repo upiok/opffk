@@ -103,10 +103,8 @@ function renderStatus(st) {
     ["Core process", st.running ? "running (pid " + st.pid + ")" : (st.desired ? "stopped (auto-restart pending)" : "stopped")],
     ["Tunnel connected", connected],
     ["Exit mode", st.mode || "—"],
-    ["Active carrier", st.active || "—"],
     ["Uptime", fmtUptime(st.uptime_sec)],
     ["Traffic in / out", fmtBytes(st.bytes_in) + " / " + fmtBytes(st.bytes_out)],
-    ["Core binary", st.core_binary_present ? st.core_bin : (st.core_bin + " (missing)")],
     ["Auto-restarts", String(st.restarts || 0)]
   ];
   rows.forEach(function (pair) {
@@ -219,6 +217,8 @@ function readConfigFromForm() {
 
 function renderState(state) {
   CSRF = state.csrf;
+  var transports = (state.config && state.config.openflux && state.config.openflux.transports) || [];
+  setText("btn-add-server", transports.length ? "Server settings" : "+ Add server");
   setText("hdr-version", state.backend);
   setText("p-conf", state.paths.conf);
   setText("upd-installed", (state.opffk_version || "unknown") + "");
@@ -330,6 +330,17 @@ function enterApp() {
   hide($("view-login"));
   show($("view-app"));
   refreshState();
+}
+
+var statusTimer = null;
+
+function startStatusPolling() {
+  if (statusTimer) clearInterval(statusTimer);
+  statusTimer = setInterval(function () {
+    if ($("view-app").classList.contains("hidden")) return;
+    if (!$("status-auto") || !$("status-auto").checked) return;
+    refreshState();
+  }, 5000);
 }
 
 function refreshState() {
@@ -574,4 +585,5 @@ document.addEventListener("DOMContentLoaded", function () {
   bindApp();
   bindModalChrome();
   refreshState();
+  startStatusPolling();
 });

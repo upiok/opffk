@@ -62,6 +62,11 @@ func (s *supervisor) Start() error {
 		s.mu.Unlock()
 		return fmt.Errorf("core config %s is missing — apply the settings first", s.paths.ConfFile())
 	}
+	// No transports configured = no node: the UI shows "Add server".
+	if cfg, err := LoadUIConfig(s.paths); err == nil && len(cfg.OpenFlux.Transports) == 0 {
+		s.mu.Unlock()
+		return errors.New("no server configured — add one via \"Add server\" (transports define the node's carriers)")
+	}
 	// l3 uses raw sockets (IPPROTO_RAW + raw TCP/UDP/ICMP) and needs root
 	// or CAP_NET_RAW. The backend drops privileges when run_as is set, so
 	// an l3 start under a dropped backend can only fail — refuse with the
@@ -100,6 +105,7 @@ func (s *supervisor) Start() error {
 	s.lastExit = nil
 	s.mu.Unlock()
 
+	s.log.clear() // a fresh run starts a fresh log
 	s.log.write("supervisor: core started (pid " + strconv.Itoa(cmd.Process.Pid) + ")")
 
 	s.wg.Add(1)

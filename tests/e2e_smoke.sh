@@ -190,6 +190,29 @@ echo "$RES" | grep -q '"ok":false' || fail "invalid config accepted"
 grep -q "Listen = 0.0.0.0:17891" "$SBX/etc/opffk/openflux.conf" || fail "invalid apply modified the config"
 pass "invalid config rejected without touching the file"
 
+# deleting the last transport = "no node configured": config, cookies and
+# logs are wiped, the core stops, the UI goes back to "Add server"
+CSRF3=$(JAR "http://127.0.0.1:$PORT/api/state" | python3 -c 'import json,sys; print(json.load(sys.stdin)["csrf"])')
+RES=$(JAR -X POST -H "X-Opffk-CSRF: $CSRF3" -H "Content-Type: application/json" \
+    -d '{"settings":{"mode":"l4","codec":"batched","debug":0,"transports":[]},"restart":true}' \
+    "http://127.0.0.1:$PORT/api/config")
+echo "$RES" | grep -q '"ok":true' || fail "node deletion rejected: $RES"
+[ -f "$SBX/etc/opffk/openflux.conf" ] && fail "core config survived node deletion"
+[ -f "$SBX/var/lib/opffk/cookies.json" ] && fail "cookie store survived node deletion"
+JAR "http://127.0.0.1:$PORT/api/state" | grep -q '"running":true' && fail "core still running after node deletion"
+pass "node deletion wipes config, cookies and logs; core stopped"
+
+# restore a working server for the rest of the suite
+RES=$(POST '{"settings":{"mode":"l4","codec":"batched","debug":2,"transports":[{"type":"direct","priority":50,"listen":"0.0.0.0:17891"}]},"restart":true}' 'config')
+echo "$RES" | grep -q '"ok":true' || fail "server re-add failed: $RES"
+CONNECTED2=0
+for i in $(seq 1 20); do
+    if JAR "http://127.0.0.1:$PORT/api/state" | grep -q '"connected":true'; then CONNECTED2=1; break; fi
+    sleep 0.5
+done
+[ "$CONNECTED2" = 1 ] || fail "re-added server never connected"
+pass "server re-added via Add server and connected"
+
 # egress proxy setting round-trip: validated, persisted, rendered into
 # the upstream conf format
 RES=$(POST '{"settings":{"mode":"l4","codec":"batched","debug":2,"egress_proxy":"socks5://user:pass@10.0.0.1:1080","transports":[{"type":"direct","priority":50,"listen":"0.0.0.0:17891"}]},"restart":false}' 'config')

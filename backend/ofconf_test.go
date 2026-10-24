@@ -70,7 +70,7 @@ func TestValidateSettingsRejects(t *testing.T) {
 		{"l3 gated", func(s *OpenFluxSettings) { s.Mode = "l3" }, "l3"},
 		{"bad mode", func(s *OpenFluxSettings) { s.Mode = "l5" }, "unknown mode"},
 		{"bad codec", func(s *OpenFluxSettings) { s.Codec = "zstd" }, "codec"},
-		{"no transports", func(s *OpenFluxSettings) { s.Transports = nil }, "at least one"},
+		// zero transports is VALID since v0.2.0 ("no node configured")
 		{"bad type", func(s *OpenFluxSettings) {
 			s.Transports[0].Type = "facebook"
 		}, "not supported"},
@@ -177,6 +177,14 @@ func TestWriteCoreConfigEgressLine(t *testing.T) {
 	conf := miniParseConf(t, p.ConfFile())
 	if conf[""]["EgressProxy"] != "socks5://user:pass@10.0.0.1:1080" {
 		t.Errorf("EgressProxy line missing/wrong: %q", conf[""]["EgressProxy"])
+	}
+}
+
+func TestEmptyTransportsValid(t *testing.T) {
+	st := validBaseSettings()
+	st.Transports = nil
+	if errs := ValidateSettings(&st, false); len(errs) != 0 {
+		t.Fatalf("empty transports should be valid (no node configured), got: %v", errs)
 	}
 }
 
