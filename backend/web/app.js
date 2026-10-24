@@ -268,10 +268,10 @@ function renderServerCard(state) {
   var sub = "—";
   if (st.running && st.connected) {
     dot.classList.add("dot-ok");
-    sub = carrierLabel(st.active) || "connected";
+    sub = "connected";
   } else if (st.running) {
     dot.classList.add("dot-warn");
-    sub = st.active ? (carrierLabel(st.active) + " — connecting…") : "connecting…";
+    sub = "connecting…";
   } else {
     dot.classList.add("dot-bad");
     sub = "stopped";
@@ -292,9 +292,30 @@ function renderServerCard(state) {
     if (t.type === "direct") det.textContent = t.listen || "";
     else if (t.type === "oneme") det.textContent = "priority " + t.priority;
     else det.textContent = t.url || "";
-    row.appendChild(name); row.appendChild(det);
+    var del = document.createElement("button");
+    del.type = "button";
+    del.className = "ghost small-btn";
+    del.textContent = "✕";
+    del.title = "remove this transport and restart";
+    del.addEventListener("click", function () {
+      if (!window.confirm("Remove " + carrierLabel(t.type) + " from the node and restart the core?")) return;
+      var cfg = JSON.parse(JSON.stringify(state.config));
+      cfg.openflux.transports = (cfg.openflux.transports || []).filter(function (x) { return x.type !== t.type; });
+      post("/api/config", { settings: cfg.openflux, restart: true }).then(function (res) {
+        if (res.errors && res.errors.length) { window.alert(res.errors.join("\n")); return; }
+        configLoaded = false; // the card re-reads config from state
+        refreshState();
+      });
+    });
+    row.appendChild(name); row.appendChild(det); row.appendChild(del);
     list.appendChild(row);
   });
+  if (transports.length) {
+    var hint = document.createElement("div");
+    hint.className = "muted small";
+    hint.textContent = "opffk runs one node; transports above are its carriers (higher priority is tried first). Add more via “Server settings”.";
+    list.appendChild(hint);
+  }
 }
 
 function renderLogs(lines) {
