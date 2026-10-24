@@ -96,13 +96,8 @@ function badge(kind, text) {
 function renderStatus(st) {
   var grid = $("status-grid");
   grid.textContent = "";
-  var connected = "—";
-  if (st.connected === true) connected = "yes";
-  if (st.connected === false) connected = "no";
   var rows = [
     ["Core process", st.running ? "running (pid " + st.pid + ")" : (st.desired ? "stopped (auto-restart pending)" : "stopped")],
-    ["Tunnel connected", connected],
-    ["Exit mode", st.mode || "—"],
     ["Uptime", fmtUptime(st.uptime_sec)],
     ["Traffic in / out", fmtBytes(st.bytes_in) + " / " + fmtBytes(st.bytes_out)],
     ["Auto-restarts", String(st.restarts || 0)]
