@@ -252,6 +252,19 @@ function renderServerCard(state) {
   var st = state.service;
   var dot = $("server-dot");
   dot.className = "server-dot";
+
+  // title: the carrier traffic currently flows through; when the node is
+  // idle, the highest-priority configured transport
+  var title = "opffk exit";
+  if (st.running && st.active) {
+    title = carrierLabel(st.active);
+  } else if (transports.length) {
+    var best = transports[0];
+    transports.forEach(function (t) { if (t.priority > best.priority) best = t; });
+    title = carrierLabel(best.type);
+  }
+  setText("server-name", title);
+
   var sub = "—";
   if (st.running && st.connected) {
     dot.classList.add("dot-ok");
