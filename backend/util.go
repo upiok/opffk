@@ -74,6 +74,31 @@ func copyFile(src, dst string, mode os.FileMode) error {
 	return writeFileAtomic(dst, data, mode)
 }
 
+// writeFileInPlace overwrites an existing file we own without touching
+// its directory (no temp file, no rename). Used for the init script:
+// /opt/etc/init.d is root-owned and shared with other services, so the
+// backend cannot create files there — but the script file itself belongs
+// to the service user. Atomicity is traded for writability here; the
+// canonical copy is kept in the share directory for recovery.
+func writeFileInPlace(path string, data []byte, mode os.FileMode) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Chmod(path, mode)
+}
+
 // fileExists is a small helper used across the update/uninstall paths.
 func fileExists(path string) bool {
 	st, err := os.Stat(path)

@@ -262,10 +262,31 @@ func (app *App) ApplySelfUpdate() (*opffkReleaseInfo, error) {
 	}
 
 	// ---- apply --------------------------------------------------------------
+	// Order matters for recoverability: the init script goes first (the
+	// only step that can fail on permissions — a root-owned rc directory
+	// shared with other Entware services). If it fails, nothing else has
+	// been touched and a retry is clean.
 	app.log.write("self-update: applying " + rel.Latest + " (backend, core, init script, manifest)")
 	if err := app.sup.Stop(); err != nil {
 		return nil, fmt.Errorf("stop core: %w", err)
 	}
+
+	// init script: canonical copy in the share dir, then in-place write
+	// (writeFileInPlace — the file is service-user-owned; the directory
+	// is not ours and must stay root-owned for the other services).
+	initData, err := os.ReadFile(newInit)
+	if err != nil {
+		return nil, err
+	}
+	shareInit := filepath.Join(app.paths.ShareDir, "S99opffk")
+	if err := writeFileAtomic(shareInit, initData, 0o755); err != nil {
+		return nil, fmt.Errorf("stage init script copy: %w", err)
+	}
+	if err := writeFileInPlace(app.paths.InitScript, initData, 0o755); err != nil {
+		return nil, fmt.Errorf("install init script: %w (if this persists, run the installer once over SSH: "+
+			"curl -fsSL https://raw.githubusercontent.com/upiok/opffk/main/install.sh | OPFFK_REPO=upiok/opffk sh)", err)
+	}
+
 	// keep the previous backend for manual recovery
 	_ = os.Remove(app.paths.WebBin + ".previous")
 	if fileExists(app.paths.WebBin) {
@@ -290,13 +311,6 @@ func (app *App) ApplySelfUpdate() (*opffkReleaseInfo, error) {
 	}
 	if err := os.Rename(app.paths.CoreBin+".new", app.paths.CoreBin); err != nil {
 		return nil, fmt.Errorf("install core: %w", err)
-	}
-	initNew := app.paths.InitScript + ".new"
-	if err := copyFile(newInit, initNew, 0o755); err != nil {
-		return nil, err
-	}
-	if err := os.Rename(initNew, app.paths.InitScript); err != nil {
-		return nil, fmt.Errorf("install init script: %w", err)
 	}
 	if err := copyFile(newManifest, app.paths.ManifestFile()+".new", 0o644); err != nil {
 		return nil, err
