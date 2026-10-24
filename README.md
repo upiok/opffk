@@ -2,27 +2,6 @@
 
 **English · [Русский](README.ru.md)**
 
-A browser-managed [OpenFlux](https://github.com/p1neappleXpress/OpenFlux)
-exit-node deployment for Keenetic routers running Entware. One command to
-install, a small web UI to configure, start, stop, update and uninstall.
-
-opffk does **not** reimplement anything from OpenFlux: it installs the
-upstream core binary (hash-pinned from upstream releases), writes the
-upstream `.conf` format, supervises the process, and reads live status from
-the core's own IPC socket.
-
-```
-┌────────────────────────── Keenetic router (Entware, /opt) ──────────────────┐
-│  S99opffk ──▶ opffk-web (Go, ~8 MB, stdlib-only, embedded UI)               │
-│                 │  spawn / SIGTERM / crash backoff                          │
-│                 ▼                                                           │
-│               openflux (upstream core, --role=exit --mode=l4)               │
-│                 │  status frames (Unix socket, upstream IPC protocol)       │
-│                 ▼                                                           │
-│               carriers (direct / yandex / vyandex / mailru / …)             │
-└──────────────────────────────────────────────────────────────────────────────┘
-```
-
 # Disclaimer
 
 opffk is a **third-party deployment tool** for
@@ -77,13 +56,6 @@ installing it you accept full responsibility for its use.
 curl -fsSL https://raw.githubusercontent.com/upiok/opffk/main/install.sh \
   | OPFFK_REPO=upiok/opffk sh
 ```
-
-The `OPFFK_REPO` variable tells the installer which repository hosts the
-release artifacts. The installer downloads a pinned release tarball plus its
-SHA-256 checksum file, verifies both, and only then installs — it never
-pipes downloaded content into a shell and never disables TLS verification.
-
-
 ### What the installer does
 
 1. Detects Entware, architecture, RAM, storage and required tools; refuses
