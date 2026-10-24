@@ -54,18 +54,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.value }}
         run: |
-          cat > release-notes.md <<'NOTES'
-          Установка одной командой (см. предупреждение о `curl | sh` в README):
-
-          ```
-          curl -fsSL https://raw.githubusercontent.com/REPO/main/install.sh | OPFFK_REPO=REPO sh
-          ```
-
-          Замените REPO на ваш OWNER/REPOSITORY. Ядро OpenFlux берётся из
-          manifest.json (версия и SHA-256 закреплены, проверяются при установке).
-          Ручная установка, документация и совместимость — в README.
-          NOTES
-          sed -i "s|REPO/main/install.sh|${GITHUB_REPOSITORY}/main/install.sh|; s|OPFFK_REPO=REPO|OPFFK_REPO=${GITHUB_REPOSITORY}|" release-notes.md
+          # concise release notes: just the commit subjects since the previous tag
+          PREV=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          {
+            if [ -n "$PREV" ]; then
+              git log --pretty=format:"- %s" "$PREV..HEAD"
+            else
+              git log --pretty=format:"- %s" HEAD
+            fi
+          } > release-notes.md
           gh release create "$VERSION" \
             dist/opffk-$VERSION-linux-*.tar.gz \
             dist/opffk-$VERSION-linux-*.tar.gz.sha256 \

@@ -146,7 +146,8 @@ function transportRow(t) {
   var val = document.createElement("input");
   val.type = "text";
   val.placeholder = t.type === "direct" ? "0.0.0.0:7891 (listen)" : "URL / token";
-  val.value = t.url || t.listen || t.token || "";
+  val.value = t.url || t.listen || t.token ||
+    (t.type === "direct" ? "0.0.0.0:7891" : ""); // sensible default for new rows
 
   var uid = document.createElement("input");
   uid.type = "text"; uid.placeholder = "oneme uid"; uid.className = "uid";
@@ -310,6 +311,22 @@ function renderServerCard(state) {
     hint.className = "muted small";
     hint.textContent = "opffk runs one node; transports above are its carriers (higher priority is tried first). Add more via “Server settings”.";
     list.appendChild(hint);
+
+    var delNode = document.createElement("button");
+    delNode.type = "button";
+    delNode.className = "danger-btn";
+    delNode.textContent = "Delete node";
+    delNode.addEventListener("click", function () {
+      if (!window.confirm("Delete the whole node? The core stops; the config, cookies and logs are wiped.")) return;
+      var cfg = JSON.parse(JSON.stringify(state.config));
+      cfg.openflux.transports = [];
+      post("/api/config", { settings: cfg.openflux, restart: false }).then(function (res) {
+        if (res.errors && res.errors.length) { window.alert(res.errors.join("\n")); return; }
+        configLoaded = false;
+        refreshState(); // card disappears, header returns to "+ Add server"
+      });
+    });
+    list.appendChild(delNode);
   }
 }
 
