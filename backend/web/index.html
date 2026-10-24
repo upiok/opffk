@@ -145,11 +145,18 @@
       <button class="ghost small-btn modal-close" data-close="modal-update">&#10005;</button>
     </div>
     <div class="modal-body">
-      <p class="muted small">Downloads the pinned core (<code id="p-core"></code>), verifies its SHA-256, restarts the service and rolls back automatically if the new core does not come up healthy. Backend updates: re-run <code>install.sh upgrade</code> over SSH.</p>
+      <p class="muted small">Installed opffk: <strong id="upd-installed">…</strong>. A full update replaces the backend, the core, the init script and the manifest from a verified opffk release; the backend restarts itself (you will need to log in again) and the previous backend binary is kept for manual recovery.</p>
       <div class="btn-row">
-        <button id="btn-update-check" class="ghost">Check</button>
-        <button id="btn-update-apply">Update</button>
-        <button id="btn-update-rollback" class="ghost">Roll back</button>
+        <button id="btn-self-check" class="ghost">Check</button>
+        <button id="btn-self-apply">Update opffk</button>
+      </div>
+      <p id="self-result" class="muted"></p>
+      <h3 class="modal-sub">Core only</h3>
+      <p class="muted small">Core-only update (<code id="p-core"></code>) with automatic rollback if the new core does not come up healthy:</p>
+      <div class="btn-row">
+        <button id="btn-update-check" class="ghost small-btn">Check core</button>
+        <button id="btn-update-apply" class="ghost small-btn">Update core</button>
+        <button id="btn-update-rollback" class="ghost small-btn">Roll back core</button>
       </div>
       <p id="update-result" class="muted"></p>
     </div>

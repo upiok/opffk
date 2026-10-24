@@ -42,7 +42,7 @@
 set -u
 
 # ---- pinned defaults (see manifest.json; updated together with it) ---------
-OPFFK_VERSION_DEFAULT="v0.1.4"
+OPFFK_VERSION_DEFAULT="v0.1.5"
 
 OPFFK_PREFIX="${OPFFK_PREFIX:-/opt}"
 OPFFK_REPO="${OPFFK_REPO:-}"
@@ -484,6 +484,13 @@ manifest.json). Download a fresh release or install with --from-dir."
         _uid=$(grep "^${SERVICE_USER}:" "$OPFFK_PREFIX/etc/passwd" | head -n 1 | cut -d: -f3)
         chown -R "${_uid}:${_uid}" "$STATE_DIR" "$LOG_DIR" "$RUN_DIR" 2>/dev/null || true
         chown "${_uid}:${_uid}" "$ETC_DIR" 2>/dev/null || true
+        # Self-update from the web UI swaps the backend binary, the core
+        # binary, the init script and the manifest — all owned by the
+        # service user. This is the documented trade-off of in-place
+        # self-updates (see docs/SECURITY.md).
+        chown "${_uid}:${_uid}" "$BIN_DIR" "$WEB_BIN" "$CORE_BIN" 2>/dev/null || true
+        chown "${_uid}:${_uid}" "$INIT_SCRIPT" 2>/dev/null || true
+        chown -R "${_uid}:${_uid}" "$SHARE_DIR" 2>/dev/null || true
     fi
     chmod 0755 "$STATE_DIR" "$LOG_DIR" "$RUN_DIR" 2>/dev/null || true
 

@@ -293,7 +293,8 @@ func (app *App) logWebEvent(msg string) {
 // ---- state & logs ---------------------------------------------------------------
 
 type stateResponse struct {
-	Backend  string            `json:"backend"`
+	Backend      string            `json:"backend"`
+	OpffkVersion string            `json:"opffk_version"`
 	Paths    map[string]string `json:"paths"`
 	Service  Snapshot          `json:"service"`
 	Config   *UIConfig         `json:"config"`
@@ -314,7 +315,8 @@ type platformInfo struct {
 
 func (app *App) handleState(w http.ResponseWriter, r *http.Request, sess *session) {
 	resp := stateResponse{
-		Backend:  "opffk " + app.version,
+		Backend:      "opffk " + app.version,
+		OpffkVersion: opffkVersionInstalled(app.paths),
 		Service:  app.sup.Snapshot(),
 		Config:   app.cfg,
 		Logs:     app.log.tail(120),
@@ -706,7 +708,7 @@ func (app *App) handleUpdate(w http.ResponseWriter, r *http.Request, sess *sessi
 		return
 	}
 	var req struct {
-		Action string `json:"action"` // check | apply | rollback
+		Action string `json:"action"` // check | apply | rollback | check_self | apply_full
 	}
 	if err := json.Unmarshal(body, &req); err != nil {
 		jsonErr(w, http.StatusBadRequest, "bad JSON")
@@ -727,6 +729,20 @@ func (app *App) handleUpdate(w http.ResponseWriter, r *http.Request, sess *sessi
 			return
 		}
 		jsonOK(w, res)
+	case "check_self":
+		res, err := app.CheckSelfUpdate()
+		if err != nil {
+			jsonErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		jsonOK(w, res)
+	case "apply_full":
+		res, err := app.ApplySelfUpdate()
+		if err != nil {
+			jsonErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		jsonOK(w, res) // on a real install the backend re-execs mid-call
 	case "rollback":
 		res, err := app.Rollback()
 		if err != nil {

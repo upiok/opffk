@@ -77,6 +77,16 @@ func archNameFor(arch string) string {
 	return arch
 }
 
+// loadManifestFrom parses a manifest at an arbitrary path (used by the
+// self-update to cross-check the bundled core).
+func loadManifestFrom(path string) (*Manifest, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return parseManifest(data)
+}
+
 func loadLocalManifest(p *Paths) (*Manifest, error) {
 	data, err := os.ReadFile(p.ManifestFile())
 	if err != nil {

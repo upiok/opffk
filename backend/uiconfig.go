@@ -26,7 +26,9 @@ type UIConfig struct {
 
 	AutoStart bool `json:"autostart"` // start the core when the backend starts
 
-	UpdateManifestURL string `json:"update_manifest_url"` // https URL to our manifest.json ("" = updates disabled)
+	UpdateManifestURL string `json:"update_manifest_url"` // https URL to our manifest.json ("" = core-only checks fall back to the local manifest)
+	UpdateRepo        string `json:"update_repo"`         // GitHub repo hosting the opffk releases (full self-update)
+	UpdateAPIBase     string `json:"update_api_base"`     // GitHub API base ("" = https://api.github.com; override for tests)
 
 	// Credential = PBKDF2-HMAC-SHA256 of the web password.
 	Auth struct {
@@ -68,12 +70,13 @@ type TransportSetting struct {
 
 func DefaultUIConfig() *UIConfig {
 	c := &UIConfig{
-		Schema:    1,
-		ListenIP:  "0.0.0.0",
-		Port:      8791,
-		RunAs:     "openflux",
-		AllowL3:   false,
-		AutoStart: true,
+		Schema:     1,
+		ListenIP:   "0.0.0.0",
+		Port:       8791,
+		RunAs:      "openflux",
+		AllowL3:    false,
+		AutoStart:  true,
+		UpdateRepo: "upiok/opffk",
 		OpenFlux: OpenFluxSettings{
 			Mode:  "l4",
 			Codec: "batched",

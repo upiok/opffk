@@ -117,6 +117,22 @@ web layer. Log values are displayed as text only.
   are verified, and executed from disk. TLS verification is never
   disabled (curl `--proto '=https'`, no `-k` anywhere).
 
+## Self-update
+
+The full self-update (web UI → Settings → Core updates → *Update opffk*)
+downloads the opffk release tarball over HTTPS together with its
+published `.sha256`, verifies both, cross-checks the bundled core
+against the bundled manifest, pre-flights the new backend binary, swaps
+files atomically and re-execs the backend in place (same PID). Trust
+level equals the one-command installer path (HTTPS + the release's own
+checksum file). To make this possible the installer hands ownership of
+the binaries, the init script and the share directory to the service
+user — an accepted trade-off: a compromised web session could replace
+the deployment's binaries, but a compromised web session could also
+reconfigure the exit node entirely, so the boundary does not move. The
+previous backend binary is kept at `<prefix>/bin/opffk-web.previous`
+for manual recovery.
+
 ## What opffk will not do
 
 - Modify Keenetic firewall, port forwarding, routing or DNS settings.

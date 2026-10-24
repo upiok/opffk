@@ -197,7 +197,108 @@ echo "$RES" | grep -q '"ok":true' || fail "egress config rejected: $RES"
 grep -q "EgressProxy = socks5://user:pass@10.0.0.1:1080" "$SBX/etc/opffk/openflux.conf" || fail "EgressProxy line missing from core config"
 pass "egress proxy setting validated and written to the core config"
 
-# client link generation through the core's --make-link contract
+# ---- full self-update (test mode swaps files, skips the re-exec) ----------
+
+# Build a "newer" backend binary to serve as the release content.
+(cd "$ROOT_DIR/backend" && CGO_ENABLED=0 "$GO" build -buildvcs=false \
+    -ldflags "-X main.version=v9.9.9-new" -o "$WORK/opffk-web-new" .)
+
+# Local GitHub-API stand-in: /releases/latest JSON + tarball + sha256.
+fuser -k 18996/tcp 2>/dev/null || true
+sleep 0.5
+RELDIR="$WORK/rel-v9.9.9"
+mkdir -p "$RELDIR"
+cp "$ROOT_DIR/install.sh" "$RELDIR/install.sh"
+cp "$ROOT_DIR/packaging/S99opffk" "$RELDIR/S99opffk"
+# the bundled manifest must pin the bundled core's actual hash — the
+# self-update cross-checks them exactly like a real release does
+CORE_SHA=$(sha256sum "$SBX/bin/openflux" | awk '{print $1}')
+sed "s/\"amd64\": \"[0-9a-f]\{64\}\"/\"amd64\": \"$CORE_SHA\"/; s/\"version\": \"node-v[^\"]*\"/\"version\": \"node-v9.9.9\"/" \
+    "$ROOT_DIR/manifest.json" > "$RELDIR/manifest.json"
+cp "$WORK/opffk-web-new" "$RELDIR/opffk-web-amd64"
+cp "$SBX/bin/openflux" "$RELDIR/openflux-linux-amd64"
+printf 'v9.9.9\n' > "$RELDIR/VERSION"
+mkdir -p "$RELDIR/opffk-v9.9.9-linux-amd64"
+mv "$RELDIR/install.sh" "$RELDIR/S99opffk" "$RELDIR/manifest.json" "$RELDIR/VERSION" \
+   "$RELDIR/opffk-web-amd64" "$RELDIR/openflux-linux-amd64" \
+   "$RELDIR/opffk-v9.9.9-linux-amd64/"
+( cd "$RELDIR" && tar -czf "$WORK/opffk-v9.9.9-linux-amd64.tar.gz" "opffk-v9.9.9-linux-amd64" )
+SHA=$(sha256sum "$WORK/opffk-v9.9.9-linux-amd64.tar.gz" | awk '{print $1}')
+printf '%s  opffk-v9.9.9-linux-amd64.tar.gz\n' "$SHA" > "$WORK/release.sha256"
+python3 - "$WORK" <<'PY' &
+import http.server, json, socketserver, sys, os, functools
+work = sys.argv[1]
+latest = {
+  "tag_name": "v9.9.9",
+  "assets": [
+    {"name": "opffk-v9.9.9-linux-amd64.tar.gz",
+     "browser_download_url": f"http://127.0.0.1:18996/opffk-v9.9.9-linux-amd64.tar.gz"},
+    {"name": "opffk-v9.9.9-linux-amd64.tar.gz.sha256",
+     "browser_download_url": f"http://127.0.0.1:18996/release.sha256"},
+  ],
+}
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/repos/upiok/opffk/releases/latest":
+            body = json.dumps(latest).encode()
+            self.send_response(200); self.send_header("Content-Length", str(len(body))); self.end_headers()
+            self.wfile.write(body); return
+        path = os.path.join(work, self.path.lstrip("/"))
+        if os.path.isfile(path):
+            self.send_response(200)
+            self.send_header("Content-Length", str(os.path.getsize(path)))
+            self.end_headers()
+            with open(path, "rb") as f: self.wfile.write(f.read())
+            return
+        self.send_response(404); self.end_headers()
+    def log_message(self, *a): pass
+socketserver.TCPServer.allow_reuse_address = True
+with socketserver.TCPServer(("127.0.0.1", 18996), H) as srv:
+    srv.serve_forever()
+PY
+RELHTTPPID=$!
+sleep 0.5
+kill -0 $RELHTTPPID 2>/dev/null || { cat "$WORK/release-server.log" >&2; fail "release server did not start (port busy?)"; }
+
+# point the backend at the local release server via ui.json
+python3 - "$SBX" <<'PY'
+import json, sys
+p = sys.argv[1] + "/etc/opffk/ui.json"
+c = json.load(open(p))
+c["update_repo"] = "upiok/opffk"
+c["update_api_base"] = "http://127.0.0.1:18996"
+json.dump(c, open(p, "w"), indent=2)
+PY
+
+# the backend keeps ui.json in memory: restart it so the local release
+# server config takes effect, then log in again (sessions are in-memory)
+OPFFK_ROOT="$SBX" "$SBX/etc/init.d/S99opffk" restart >/dev/null 2>&1
+for i in $(seq 1 40); do
+    curl -fsS -o /dev/null "http://127.0.0.1:$PORT/login" 2>/dev/null && break
+    [ "$i" = 40 ] && fail "backend did not come back after config restart"
+    sleep 0.5
+done
+curl -fsS -c "$COOKIES" -o /dev/null "http://127.0.0.1:$PORT/login"
+LOGIN2=$(JAR -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "password=$PW" "http://127.0.0.1:$PORT/login")
+echo "$LOGIN2" | grep -q '"ok":true' || fail "re-login after restart failed: $LOGIN2"
+CSRF2=$(echo "$LOGIN2" | python3 -c 'import json,sys; print(json.load(sys.stdin)["csrf"])')
+RES=$(curl -sS -b "$COOKIES" -X POST -H "X-Opffk-CSRF: $CSRF2" -H "Content-Type: application/json" \
+    -d '{"action":"check_self"}' "http://127.0.0.1:$PORT/api/update")
+echo "$RES" | grep -q '"latest":"v9.9.9"' || fail "self-update check failed: $RES"
+pass "self-update check finds the newer release"
+
+RES=$(curl -sS -b "$COOKIES" -X POST -H "X-Opffk-CSRF: $CSRF2" -H "Content-Type: application/json" \
+    -d '{"action":"apply_full"}' "http://127.0.0.1:$PORT/api/update")
+echo "$RES" | grep -q '"ok":true' || fail "self-update apply failed: $RES"
+cmp -s "$SBX/bin/opffk-web" "$WORK/opffk-web-new" || fail "backend binary not replaced"
+grep -q "opffk v9.9.9" "$SBX/share/opffk/opffk-VERSION" 2>/dev/null || grep -q "v9.9.9" "$SBX/share/opffk/opffk-VERSION" || fail "opffk version marker not updated"
+[ -x "$SBX/bin/opffk-web.previous" ] || fail "previous backend not kept"
+pass "full self-update swapped backend, init script, manifest and version (exec skipped in test mode)"
+kill $RELHTTPPID 2>/dev/null || true
+
+# client link generation through the core's --make-link contract.
+# The self-update restart re-logged us in above; refresh CSRF via state.
+CSRF=$(JAR "http://127.0.0.1:$PORT/api/state" | python3 -c 'import json,sys; print(json.load(sys.stdin)["csrf"])')
 RES=$(JAR -X POST -H "X-Opffk-CSRF: $CSRF" -H "Content-Type: application/x-www-form-urlencoded" \
     -d "share_host=203.0.113.10" "http://127.0.0.1:$PORT/api/link")
 echo "$RES" | grep -q "openflux://" || fail "client link generation failed: $RES"

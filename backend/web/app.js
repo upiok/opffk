@@ -221,6 +221,7 @@ function renderState(state) {
   CSRF = state.csrf;
   setText("hdr-version", state.backend);
   setText("p-conf", state.paths.conf);
+  setText("upd-installed", (state.opffk_version || "unknown") + "");
   setText("p-core", state.paths.core);
   setText("logout-csrf", state.csrf);
   setText("ftr-note", state.backend + " — platform " + state.platform.uname_m +
@@ -363,6 +364,30 @@ function bindApp() {
     post("/api/key/rotate").then(function (res) {
       setText("update-result", res.message || "key rotated");
     });
+  });
+
+  $("btn-self-check").addEventListener("click", function () {
+    setText("self-result", "checking…");
+    post("/api/update", { action: "check_self" }).then(function (res) {
+      setText("upd-installed", res.installed || "unknown");
+      setText("self-result", (res.message || JSON.stringify(res)));
+    }).catch(function (err) { setText("self-result", "error: " + err.message); });
+  });
+  $("btn-self-apply").addEventListener("click", function () {
+    if (!window.confirm("Update the whole opffk (backend + core + init script)? The backend restarts itself and you will need to log in again.")) return;
+    setText("self-result", "updating… (download, verify, swap, restart)");
+    post("/api/update", { action: "apply_full" }).then(function (res) {
+      setText("self-result", res.message || "updated");
+      // the backend re-execs: probe until it answers again, then reload
+      var tries = 0;
+      var t = setInterval(function () {
+        tries++;
+        fetch("/login").then(function (r) {
+          if (r.ok && tries > 2) { clearInterval(t); window.location.reload(); }
+          if (tries > 30) clearInterval(t);
+        }).catch(function () { /* still restarting */ });
+      }, 1500);
+    }).catch(function (err) { setText("self-result", "error: " + err.message); });
   });
 
   $("btn-update-check").addEventListener("click", function () {
