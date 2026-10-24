@@ -397,8 +397,8 @@ stop_service() {
         info "stopping opffk-web (pid $(cat "$RUN_DIR/opffk-web.pid"))"
         service_ctl stop
         _i=0
-        while service_pid_alive && [ "$_i" -lt 20 ]; do
-            sleep 0.5
+        while service_pid_alive && [ "$_i" -lt 10 ]; do
+            sleep 1
             _i=$((_i+1))
         done
         if service_pid_alive; then
@@ -500,7 +500,7 @@ write_ui_overrides() {
 wait_ready_and_report() {
     _port="$1"
     _i=0
-    while [ "$_i" -lt 60 ]; do
+    while [ "$_i" -lt 30 ]; do
         if have curl; then
             curl -fsS -o /dev/null "http://127.0.0.1:$_port/login" 2>/dev/null && break
         elif have wget; then
@@ -508,7 +508,7 @@ wait_ready_and_report() {
         else
             break  # no downloader; assume OK and let the user check
         fi
-        sleep 0.5
+        sleep 1
         _i=$((_i+1))
     done
     _downloader=0

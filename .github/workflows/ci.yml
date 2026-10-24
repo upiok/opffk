@@ -29,6 +29,11 @@ jobs:
       - name: Installer shell tests
         run: sh tests/installer_test.sh
 
+      - name: Installer shell tests (busybox ash, approximates Entware)
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src \
+            busybox:latest sh tests/installer_test.sh
+
       - name: Stack e2e (fake core)
         run: sh tests/e2e_smoke.sh
 

@@ -203,6 +203,26 @@ OPFFK_TEST_MODE=1 sh "$ROOT_DIR/install.sh" install --from-dir "$REL" --prefix "
 expect_eq "second install succeeds" "0" "$?"
 ls "$SBX"/var/lib/opffk/opffk-backup-*.tar.gz >/dev/null 2>&1 && ok "upgrade created a backup" || bad "no backup on upgrade"
 
+# init-script lifecycle with a fake long-running backend: exercises the
+# start/stop mechanics (setsid/plain-background fallback, pidfile) under
+# whatever busybox applets the platform has — nohup is absent on Keenetic.
+printf '#!/bin/sh\nsleep 60\n' > "$SBX/bin/opffk-web"
+chmod +x "$SBX/bin/opffk-web"
+rm -f "$SBX/etc/opffk/ui.json" 2>/dev/null
+if "$SBX/etc/init.d/S99opffk" start >/dev/null 2>&1 && "$SBX/etc/init.d/S99opffk" status >/dev/null 2>&1; then
+    ok "init script: start + status work without nohup"
+else
+    bad "init script: start/status failed (nohup or pidfile problem)"
+fi
+if "$SBX/etc/init.d/S99opffk" stop >/dev/null 2>&1 && ! "$SBX/etc/init.d/S99opffk" status >/dev/null 2>&1; then
+    ok "init script: stop works"
+else
+    bad "init script: stop failed"
+fi
+# restore the failing fake so later uninstall assertions stay valid
+printf '#!/bin/sh\necho fake\n' > "$SBX/bin/opffk-web"
+chmod +x "$SBX/bin/opffk-web"
+
 # status command
 OUT=$(OPFFK_TEST_MODE=1 sh "$ROOT_DIR/install.sh" --prefix "$SBX" status)
 case "$OUT" in *"installed"*) ok "status reports installed" ;; *) bad "status output wrong: $OUT" ;; esac

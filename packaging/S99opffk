@@ -47,9 +47,15 @@ start() {
     mkdir -p "$LOG_DIR" "$RUN_DIR"
     rotate_console_log
     echo "opffk: starting opffk-web"
-    # nohup + & so rc.unslung continues; stdout/err land in the console log
-    # until the backend opens its own logs.
-    nohup "$OPFFK_WEB_BIN" $OPFFK_WEB_ARGS >> "$CONSOLE_LOG" 2>&1 &
+    # Keenetic's busybox has no nohup applet: detach with setsid when the
+    # applet exists, otherwise a plain background job (a non-interactive
+    # shell does not SIGHUP its children on exit). stdout/err land in the
+    # console log until the backend opens its own logs; stdin is detached.
+    if command -v setsid >/dev/null 2>&1; then
+        setsid "$OPFFK_WEB_BIN" $OPFFK_WEB_ARGS >> "$CONSOLE_LOG" 2>&1 </dev/null &
+    else
+        "$OPFFK_WEB_BIN" $OPFFK_WEB_ARGS >> "$CONSOLE_LOG" 2>&1 </dev/null &
+    fi
     echo $! > "$PID_FILE"
     sleep 1
     if pid_alive; then
@@ -70,8 +76,8 @@ stop() {
     echo "opffk: stopping (pid $_pid)"
     kill "$_pid" 2>/dev/null
     _i=0
-    while kill -0 "$_pid" 2>/dev/null && [ "$_i" -lt 20 ]; do
-        sleep 0.5
+    while kill -0 "$_pid" 2>/dev/null && [ "$_i" -lt 10 ]; do
+        sleep 1
         _i=$((_i+1))
     done
     if kill -0 "$_pid" 2>/dev/null; then
