@@ -208,16 +208,6 @@ Summary (full model in [docs/SECURITY.md](docs/SECURITY.md)):
   unprivileged (possible because `l4` is userspace).
 - UI bound to the LAN only; no automatic changes to Keenetic settings.
 
-## Verification status
-
-Everything is verified on the development host (x86_64, Fedora); **no
-Keenetic device has been tested** — claims about devices are marked
-"expected" in [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md). The test
-suites and how to run them: [docs/VERIFICATION.md](docs/VERIFICATION.md),
-including a full end-to-end tunnel test against the real upstream core.
-
-Publishing guide (fork OpenFlux, publish your own `node-v*` core, release
-opffk — in Russian): [docs/PUBLISHING.ru.md](docs/PUBLISHING.ru.md).
 
 ## License / attribution
 
