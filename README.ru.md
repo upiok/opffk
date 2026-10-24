@@ -88,20 +88,6 @@ curl -fsSL https://raw.githubusercontent.com/upiok/opffk/main/install.sh \
 и его файл SHA-256, проверяет оба и только потом устанавливает — он никогда
 не передаёт скачанное в shell и никогда не отключает проверку TLS.
 
-### Ручная установка (рекомендуется)
-
-```sh
-# на роутере, под root
-cd /tmp
-curl -fsSLO https://github.com/upiok/opffk/releases/download/vX.Y.Z/opffk-vX.Y.Z-linux-arm64.tar.gz
-curl -fsSLO https://github.com/upiok/opffk/releases/download/vX.Y.Z/opffk-vX.Y.Z-linux-arm64.tar.gz.sha256
-sha256sum -c opffk-vX.Y.Z-linux-arm64.tar.gz.sha256
-tar -xzf opffk-vX.Y.Z-linux-arm64.tar.gz
-sh opffk-vX.Y.Z-linux-arm64/install.sh --from-dir opffk-vX.Y.Z-linux-arm64
-```
-
-(Замените `arm64` на `arm` для устройств armv7. Убедитесь, что проверка
-сумм написала **OK**, прежде чем что-либо запускать.)
 
 ### Что делает установщик
 
