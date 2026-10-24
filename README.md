@@ -87,20 +87,6 @@ release artifacts. The installer downloads a pinned release tarball plus its
 SHA-256 checksum file, verifies both, and only then installs — it never
 pipes downloaded content into a shell and never disables TLS verification.
 
-### Manual install (recommended)
-
-```sh
-# on the router, as root
-cd /tmp
-curl -fsSLO https://github.com/upiok/opffk/releases/download/vX.Y.Z/opffk-vX.Y.Z-linux-arm64.tar.gz
-curl -fsSLO https://github.com/upiok/opffk/releases/download/vX.Y.Z/opffk-vX.Y.Z-linux-arm64.tar.gz.sha256
-sha256sum -c opffk-vX.Y.Z-linux-arm64.tar.gz.sha256
-tar -xzf opffk-vX.Y.Z-linux-arm64.tar.gz
-sh opffk-vX.Y.Z-linux-arm64/install.sh --from-dir opffk-vX.Y.Z-linux-arm64
-```
-
-(Replace `arm64` with `arm` for armv7 devices. Check the checksum output
-says **OK** before running anything.)
 
 ### What the installer does
 
