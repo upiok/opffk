@@ -71,4 +71,9 @@ jobs:
             dist/opffk-$VERSION-linux-*.tar.gz.sha256 \
             --title "opffk $VERSION" \
             --generate-notes \
-            --notes-file release-notes.md
+            --notes-file release-notes.md \
+          || { # release already exists (tag was moved): replace its assets
+               gh release upload "$VERSION" \
+                 dist/opffk-$VERSION-linux-*.tar.gz \
+                 dist/opffk-$VERSION-linux-*.tar.gz.sha256 --clobber
+               gh release edit "$VERSION" --notes-file release-notes.md; }
