@@ -53,6 +53,25 @@
       <p id="status-note" class="muted small"></p>
     </section>
 
+    <!-- server summary card (visible once a server is configured) -->
+    <section class="card server-card hidden" id="card-server">
+      <button type="button" id="server-head" class="server-head">
+        <span class="server-icon">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <circle cx="12" cy="12" r="9"></circle>
+            <path d="M3 12h18M12 3c2.5 2.6 3.8 5.7 3.8 9S14.5 18.4 12 21M12 3C9.5 5.6 8.2 8.7 8.2 12s1.3 6.4 3.8 9"></path>
+          </svg>
+          <span id="server-dot" class="server-dot dot-gray"></span>
+        </span>
+        <span class="server-titles">
+          <span class="server-name">opffk exit</span>
+          <span class="server-sub" id="server-sub">&mdash;</span>
+        </span>
+        <span class="chevron" id="server-chevron">&#9662;</span>
+      </button>
+      <div id="server-transports" class="server-transports hidden"></div>
+    </section>
+
     <section class="card" id="card-logs">
       <div class="card-head"><h2>Recent core logs</h2>
         <div class="btn-row">

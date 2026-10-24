@@ -42,7 +42,7 @@
 set -u
 
 # ---- pinned defaults (see manifest.json; updated together with it) ---------
-OPFFK_VERSION_DEFAULT="v0.1.5"
+OPFFK_VERSION_DEFAULT="v0.1.6"
 
 OPFFK_PREFIX="${OPFFK_PREFIX:-/opt}"
 OPFFK_REPO="${OPFFK_REPO:-}"

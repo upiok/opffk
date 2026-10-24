@@ -295,13 +295,13 @@ func (app *App) logWebEvent(msg string) {
 type stateResponse struct {
 	Backend      string            `json:"backend"`
 	OpffkVersion string            `json:"opffk_version"`
-	Paths    map[string]string `json:"paths"`
-	Service  Snapshot          `json:"service"`
-	Config   *UIConfig         `json:"config"`
-	Logs     []string          `json:"logs"`
-	CSRF     string            `json:"csrf"`
-	HasKey   bool              `json:"has_key"`
-	Platform platformInfo      `json:"platform"`
+	Paths        map[string]string `json:"paths"`
+	Service      Snapshot          `json:"service"`
+	Config       *UIConfig         `json:"config"`
+	Logs         []string          `json:"logs"`
+	CSRF         string            `json:"csrf"`
+	HasKey       bool              `json:"has_key"`
+	Platform     platformInfo      `json:"platform"`
 }
 
 type platformInfo struct {
@@ -317,12 +317,12 @@ func (app *App) handleState(w http.ResponseWriter, r *http.Request, sess *sessio
 	resp := stateResponse{
 		Backend:      "opffk " + app.version,
 		OpffkVersion: opffkVersionInstalled(app.paths),
-		Service:  app.sup.Snapshot(),
-		Config:   app.cfg,
-		Logs:     app.log.tail(120),
-		CSRF:     sess.csrfToken,
-		HasKey:   fileExists(app.paths.KeyFile()),
-		Platform: platformInfo{GOOS: runtime.GOOS, GOARCH: runtime.GOARCH, UnameM: hostUnameM(), TestMode: TestMode(), Root: app.paths.Root, BackendRoot: os.Geteuid() == 0},
+		Service:      app.sup.Snapshot(),
+		Config:       app.cfg,
+		Logs:         app.log.tail(120),
+		CSRF:         sess.csrfToken,
+		HasKey:       fileExists(app.paths.KeyFile()),
+		Platform:     platformInfo{GOOS: runtime.GOOS, GOARCH: runtime.GOARCH, UnameM: hostUnameM(), TestMode: TestMode(), Root: app.paths.Root, BackendRoot: os.Geteuid() == 0},
 		Paths: map[string]string{
 			"conf": app.paths.ConfFile(),
 			"key":  app.paths.KeyFile(),

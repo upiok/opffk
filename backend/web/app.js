@@ -228,11 +228,60 @@ function renderState(state) {
     (state.platform.test_mode ? " (TEST MODE, root " + state.platform.root + ")" : "") +
     " — upstream core: github.com/p1neappleXpress/OpenFlux");
   renderStatus(state.service);
+  renderServerCard(state);
   if (!configLoaded) {
     renderConfig(state.config);
     configLoaded = true;
   }
   renderLogs(state.logs);
+}
+
+var carrierNames = {
+  direct: "Direct", yandex: "Yandex Docs", vyandex: "Yandex Volga",
+  mailru: "Mail.ru Docs", cupsonline: "cups.online", boards: "Boards",
+  avito: "Avito", telemost: "Telemost", oneme: "MAX"
+};
+function carrierLabel(ty) { return carrierNames[ty] || ty; }
+
+function renderServerCard(state) {
+  var card = $("card-server");
+  var transports = (state.config && state.config.openflux && state.config.openflux.transports) || [];
+  if (!transports.length) { card.classList.add("hidden"); return; }
+  card.classList.remove("hidden");
+
+  var st = state.service;
+  var dot = $("server-dot");
+  dot.className = "server-dot";
+  var sub = "—";
+  if (st.running && st.connected) {
+    dot.classList.add("dot-ok");
+    sub = carrierLabel(st.active) || "connected";
+  } else if (st.running) {
+    dot.classList.add("dot-warn");
+    sub = st.active ? (carrierLabel(st.active) + " — connecting…") : "connecting…";
+  } else {
+    dot.classList.add("dot-bad");
+    sub = "stopped";
+  }
+  setText("server-sub", sub);
+
+  // expandable transport list
+  var list = $("server-transports");
+  list.textContent = "";
+  transports.forEach(function (t) {
+    var row = document.createElement("div");
+    row.className = "st-row";
+    var name = document.createElement("span");
+    name.className = "st-name";
+    name.textContent = carrierLabel(t.type);
+    var det = document.createElement("span");
+    det.className = "st-det muted";
+    if (t.type === "direct") det.textContent = t.listen || "";
+    else if (t.type === "oneme") det.textContent = "priority " + t.priority;
+    else det.textContent = t.url || "";
+    row.appendChild(name); row.appendChild(det);
+    list.appendChild(row);
+  });
 }
 
 function renderLogs(lines) {
@@ -326,6 +375,13 @@ function bindApp() {
   $("cfg-egress").addEventListener("input", function () {
     // visual hint only; real validation happens server-side on Apply
   });
+  $("server-head").addEventListener("click", function () {
+    var list = $("server-transports");
+    var open = !list.classList.contains("hidden");
+    list.classList.toggle("hidden");
+    $("server-chevron").style.transform = open ? "" : "rotate(180deg)";
+  });
+
   $("btn-start").addEventListener("click", function () {
     post("/api/service/start").then(refreshState);
   });
