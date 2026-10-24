@@ -27,12 +27,20 @@
     <div class="brand">opffk <span class="muted" id="hdr-version"></span></div>
     <div class="hdr-actions">
       <span id="hdr-badge" class="badge"></span>
+      <button id="btn-add-server" class="ghost">+ Add server</button>
+      <div class="menu-wrap">
+        <button id="btn-settings" class="ghost">Settings ▾</button>
+        <div id="settings-menu" class="dropdown hidden">
+          <button class="dd-item" id="dd-update">Core updates</button>
+          <button class="dd-item" id="dd-password">Change password</button>
+          <button class="dd-item danger-item" id="dd-uninstall">Uninstall…</button>
+        </div>
+      </div>
       <form id="logout-form" method="post" action="/logout"><input type="hidden" name="csrf_token" id="logout-csrf"><button type="submit" class="ghost">Log out</button></form>
     </div>
   </header>
 
   <main>
-    <!-- status -->
     <section class="card" id="card-status">
       <div class="card-head"><h2>Status</h2>
         <div class="btn-row">
@@ -45,14 +53,28 @@
       <p id="status-note" class="muted small"></p>
     </section>
 
-    <!-- configuration -->
-    <section class="card" id="card-config">
-      <div class="card-head"><h2>Configuration</h2>
+    <section class="card" id="card-logs">
+      <div class="card-head"><h2>Recent core logs</h2>
         <div class="btn-row">
-          <button id="btn-config-save">Apply</button>
-          <button id="btn-config-save-restart" class="ghost">Apply &amp; restart</button>
+          <label class="chk"><input type="checkbox" id="logs-auto"> auto</label>
+          <button id="btn-logs-refresh" class="ghost small-btn">Refresh</button>
         </div>
       </div>
+      <pre id="logs-view" class="logs"></pre>
+    </section>
+  </main>
+
+  <footer><span class="muted small" id="ftr-note"></span></footer>
+</div>
+
+<!-- ======== server modal (configuration + client link) ======== -->
+<div class="modal-wrap hidden" id="modal-server">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Server</h2>
+      <button class="ghost small-btn modal-close" data-close="modal-server">&#10005;</button>
+    </div>
+    <div class="modal-body">
       <p class="muted small">Values are validated against the pinned upstream OpenFlux rules before anything is written. The core config lives at <code id="p-conf"></code>.</p>
       <div id="config-errors" class="error hidden" role="alert"></div>
       <div class="form-grid">
@@ -88,12 +110,9 @@
         <label></label>
         <button id="btn-t-add" class="ghost small-btn">+ Add transport</button>
       </div>
-    </section>
 
-    <!-- client link -->
-    <section class="card" id="card-link">
-      <h2>Client link</h2>
-      <p class="muted small">Generate an <code>openflux://</code> link for client apps. The link <strong>contains the encryption key</strong> — treat it like a password and share it over a trusted channel only. Generating a new key invalidates every existing client link.</p>
+      <h3 class="modal-sub">Client link</h3>
+      <p class="muted small">The <code>openflux://</code> link for client apps <strong>contains the encryption key</strong> — share it over a trusted channel only. Rotating the key invalidates every existing link.</p>
       <div class="form-grid">
         <label for="link-host">Public address clients dial</label>
         <input type="text" id="link-host" placeholder="e.g. 203.0.113.10 (router WAN address; set up port forwarding yourself)">
@@ -108,59 +127,73 @@
         <div class="btn-row"><button id="btn-link-copy" class="ghost small-btn">Copy</button></div>
       </div>
       <p id="link-error" class="error hidden" role="alert"></p>
-    </section>
-
-    <!-- updates -->
-    <section class="card" id="card-update">
-      <div class="card-head"><h2>Core updates</h2>
-        <div class="btn-row">
-          <button id="btn-update-check" class="ghost">Check</button>
-          <button id="btn-update-apply">Update</button>
-          <button id="btn-update-rollback" class="ghost">Roll back</button>
-        </div>
+    </div>
+    <div class="modal-foot">
+      <div class="btn-row">
+        <button id="btn-config-save">Apply</button>
+        <button id="btn-config-save-restart" class="ghost">Apply &amp; restart</button>
       </div>
-      <p class="muted small">Updates download the pinned upstream core (<code id="p-core"></code>), verify its SHA-256 against the signed-in manifest, restart the service and roll back automatically if the new core does not come up healthy. Backend updates: re-run <code>install.sh upgrade</code> over SSH.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ======== update modal ======== -->
+<div class="modal-wrap hidden" id="modal-update">
+  <div class="modal modal-narrow">
+    <div class="modal-head">
+      <h2>Core updates</h2>
+      <button class="ghost small-btn modal-close" data-close="modal-update">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <p class="muted small">Downloads the pinned core (<code id="p-core"></code>), verifies its SHA-256, restarts the service and rolls back automatically if the new core does not come up healthy. Backend updates: re-run <code>install.sh upgrade</code> over SSH.</p>
+      <div class="btn-row">
+        <button id="btn-update-check" class="ghost">Check</button>
+        <button id="btn-update-apply">Update</button>
+        <button id="btn-update-rollback" class="ghost">Roll back</button>
+      </div>
       <p id="update-result" class="muted"></p>
-    </section>
+    </div>
+  </div>
+</div>
 
-    <!-- logs -->
-    <section class="card" id="card-logs">
-      <div class="card-head"><h2>Recent core logs</h2>
-        <div class="btn-row">
-          <label class="chk"><input type="checkbox" id="logs-auto"> auto</label>
-          <button id="btn-logs-refresh" class="ghost small-btn">Refresh</button>
-        </div>
-      </div>
-      <pre id="logs-view" class="logs"></pre>
-    </section>
-
-    <!-- settings -->
-    <section class="card" id="card-settings">
-      <h2>Settings</h2>
+<!-- ======== password modal ======== -->
+<div class="modal-wrap hidden" id="modal-password">
+  <div class="modal modal-narrow">
+    <div class="modal-head">
+      <h2>Change password</h2>
+      <button class="ghost small-btn modal-close" data-close="modal-password">&#10005;</button>
+    </div>
+    <div class="modal-body">
       <div class="form-grid">
         <label for="pw-current">Current password</label>
         <input type="password" id="pw-current" autocomplete="current-password">
         <label for="pw-new">New password (10+ chars)</label>
         <input type="password" id="pw-new" autocomplete="new-password">
-        <label></label>
-        <button id="btn-password">Change password</button>
       </div>
       <p id="password-result" class="muted"></p>
-    </section>
+    </div>
+    <div class="modal-foot">
+      <button id="btn-password">Change password</button>
+    </div>
+  </div>
+</div>
 
-    <!-- uninstall -->
-    <section class="card danger" id="card-uninstall">
+<!-- ======== uninstall modal ======== -->
+<div class="modal-wrap hidden" id="modal-uninstall">
+  <div class="modal modal-narrow">
+    <div class="modal-head">
       <h2>Uninstall</h2>
+      <button class="ghost small-btn modal-close" data-close="modal-uninstall">&#10005;</button>
+    </div>
+    <div class="modal-body">
       <p class="muted small">Creates a configuration backup, stops the core and removes binaries and configuration. A backup is kept at <code>var/lib/opffk</code>. Type <strong>UNINSTALL</strong> to confirm.</p>
       <div class="btn-row">
         <input type="text" id="uninstall-confirm" placeholder="UNINSTALL">
         <button id="btn-uninstall" class="danger-btn">Uninstall</button>
       </div>
       <p id="uninstall-result" class="muted"></p>
-    </section>
-  </main>
-
-  <footer><span class="muted small" id="ftr-note"></span></footer>
+    </div>
+  </div>
 </div>
 
 <script src="/app.js"></script>

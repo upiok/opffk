@@ -265,6 +265,59 @@ function refreshState() {
 
 function post(path, body) { return api(path, { method: "POST", body: body || {} }); }
 
+// ---- floating windows -------------------------------------------------------
+
+function openModal(id) {
+  hide($("settings-menu"));
+  var m = $(id);
+  if (!m) return;
+  m.classList.remove("hidden");
+}
+function closeModal(id) {
+  var m = $(id);
+  if (m) m.classList.add("hidden");
+}
+function bindModalChrome() {
+  document.querySelectorAll(".modal-close").forEach(function (b) {
+    b.addEventListener("click", function () { closeModal(b.getAttribute("data-close")); });
+  });
+  // click on the backdrop (the wrap itself) closes
+  document.querySelectorAll(".modal-wrap").forEach(function (w) {
+    w.addEventListener("mousedown", function (ev) {
+      if (ev.target === w) w.classList.add("hidden");
+    });
+  });
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key !== "Escape") return;
+    document.querySelectorAll(".modal-wrap").forEach(function (w) { w.classList.add("hidden"); });
+    hide($("settings-menu"));
+  });
+  $("btn-add-server").addEventListener("click", function () {
+    hide($("config-errors"));
+    openModal("modal-server");
+  });
+  $("btn-settings").addEventListener("click", function (ev) {
+    ev.stopPropagation();
+    $("settings-menu").classList.toggle("hidden");
+  });
+  // click anywhere else closes the dropdown
+  document.addEventListener("click", function (ev) {
+    if (!ev.target.closest || !ev.target.closest(".menu-wrap")) hide($("settings-menu"));
+  });
+  $("dd-update").addEventListener("click", function () {
+    hide($("settings-menu"));
+    openModal("modal-update");
+  });
+  $("dd-password").addEventListener("click", function () {
+    hide($("settings-menu"));
+    openModal("modal-password");
+  });
+  $("dd-uninstall").addEventListener("click", function () {
+    hide($("settings-menu"));
+    openModal("modal-uninstall");
+  });
+}
+
 function bindApp() {
   $("cfg-mode").addEventListener("change", function () {
     $("l3-note").style.display = ($("cfg-mode").value === "l3") ? "" : "none";
@@ -345,6 +398,7 @@ function bindApp() {
     post("/api/password", { current: $("pw-current").value, "new": $("pw-new").value })
       .then(function (res) {
         setText("password-result", res.message || "changed");
+        closeModal("modal-password");
         setTimeout(function () { window.location.reload(); }, 1500);
       })
       .catch(function (err) { setText("password-result", "error: " + err.message); });
@@ -381,7 +435,10 @@ function applyConfig(restart) {
       var box2 = $("config-errors");
       box2.textContent = "saved, but restart failed: " + res.restart_error;
       show(box2);
+      return;
     }
+    // success: close the server window and refresh
+    closeModal("modal-server");
     refreshState();
   }).catch(function (err) {
     var box = $("config-errors");
@@ -400,5 +457,6 @@ function refreshLogs() {
 document.addEventListener("DOMContentLoaded", function () {
   bindLogin();
   bindApp();
+  bindModalChrome();
   refreshState();
 });
