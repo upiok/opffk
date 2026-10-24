@@ -81,8 +81,10 @@ func (app *App) routes() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/login", app.handleLoginPage)
-	mux.HandleFunc("/app.js", app.withAuth(app.serveStatic("app.js", "application/javascript; charset=utf-8")))
-	mux.HandleFunc("/style.css", app.withAuth(app.serveStatic("style.css", "text/css; charset=utf-8")))
+	// Static assets are served WITHOUT session auth: the login page itself
+	// loads them. They contain no secrets (verified: embedded UI only).
+	mux.HandleFunc("/app.js", app.serveStatic("app.js", "application/javascript; charset=utf-8"))
+	mux.HandleFunc("/style.css", app.serveStatic("style.css", "text/css; charset=utf-8"))
 	mux.HandleFunc("/", app.withAuth(app.handleIndex))
 	mux.HandleFunc("/api/state", app.withAuth(app.handleState))
 	mux.HandleFunc("/api/logs", app.withAuth(app.handleLogs))
@@ -162,8 +164,8 @@ func (app *App) handleIndex(w http.ResponseWriter, r *http.Request, sess *sessio
 	_, _ = w.Write(data)
 }
 
-func (app *App) serveStatic(name, ctype string) authedHandler {
-	return func(w http.ResponseWriter, r *http.Request, sess *session) {
+func (app *App) serveStatic(name, ctype string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		data, err := webFS.ReadFile("web/" + name)
 		if err != nil {
 			http.NotFound(w, r)
