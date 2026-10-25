@@ -482,6 +482,9 @@ func (app *App) handleLink(w http.ResponseWriter, r *http.Request, sess *session
 	if shareHost == "" {
 		shareHost = app.publicHostHint()
 	}
+	if shareHost == "" {
+		shareHost = DetectListenIP()
+	}
 
 	type shareTransport struct {
 		Type     string `json:"type,omitempty"`
@@ -518,13 +521,16 @@ func (app *App) handleLink(w http.ResponseWriter, r *http.Request, sess *session
 		case "oneme":
 			continue // a MAX token belongs to one account; clients need their own
 		}
-		if t.Type != "direct" && st.URL == "" {
+		// cupsonline rooms are created by the RUNNING exit; the link is
+		// valid without a URL and the room list is refreshed while it runs
+		// (upstream roomLister). Other URL-carriers still need their URL.
+		if t.Type != "direct" && t.Type != "cupsonline" && st.URL == "" {
 			continue
 		}
 		cfg.Transports = append(cfg.Transports, st)
 	}
 	if len(cfg.Transports) == 0 {
-		jsonErr(w, http.StatusConflict, "no dialable transport for a client link (direct needs a public share host)")
+		jsonErr(w, http.StatusConflict, "no dialable transport for a client link — configure a direct transport (its Listen) or a URL carrier")
 		return
 	}
 	payload, _ := json.Marshal(cfg)
