@@ -159,7 +159,11 @@ function transportRow(t) {
 
   function syncFields() {
     var ty = sel.value;
-    val.placeholder = ty === "direct" ? "0.0.0.0:7891 (listen)" : (ty === "oneme" ? "MAX token" : "https://…");
+    val.placeholder =
+    ty === "direct" ? "0.0.0.0:7891 (listen)" :
+    ty === "oneme" ? "MAX token" :
+    ty === "cupsonline" ? "optional — rooms are created at runtime" :
+    "https://…";
     val.style.display = (ty === "oneme") ? "" : "";
     uid.style.display = (ty === "oneme") ? "" : "none";
   }

@@ -32,8 +32,10 @@ var allowedTransportTypes = map[string]bool{
 }
 
 // transportNeedsURL: types whose configuration is a document/weblink URL.
+// cupsonline is exempt: the exit creates its rooms at runtime when no URL
+// is given, and keeps them across restarts (upstream roomLister).
 var transportNeedsURL = map[string]bool{
-	"yandex": true, "vyandex": true, "mailru": true, "cupsonline": true,
+	"yandex": true, "vyandex": true, "mailru": true,
 	"boards": true, "avito": true, "telemost": true,
 }
 
@@ -243,6 +245,16 @@ func ValidateSettings(s *OpenFluxSettings, allowL3 bool) []string {
 				add("%s: uid missing", label)
 			}
 		default:
+			// URL-carrying types need one; cupsonline creates its rooms at
+			// runtime and runs fine without.
+			if !transportNeedsURL[t.Type] {
+				if t.URL != "" {
+					if err := validateHTTPURL(t.URL); err != nil {
+						add("%s: URL: %v", label, err)
+					}
+				}
+				continue
+			}
 			if err := validateHTTPURL(t.URL); err != nil {
 				add("%s: URL: %v", label, err)
 			}

@@ -180,6 +180,15 @@ func TestWriteCoreConfigEgressLine(t *testing.T) {
 	}
 }
 
+func TestCupsonlineWithoutURLIsValid(t *testing.T) {
+	// cups.online rooms are created by the running exit itself — no URL.
+	st := validBaseSettings()
+	st.Transports[0] = TransportSetting{Type: "cupsonline", Priority: 50}
+	if errs := ValidateSettings(&st, false); len(errs) != 0 {
+		t.Fatalf("cupsonline without URL rejected: %v", errs)
+	}
+}
+
 func TestEmptyTransportsValid(t *testing.T) {
 	st := validBaseSettings()
 	st.Transports = nil
