@@ -304,3 +304,6 @@ footer { text-align: center; padding: 12px; }
 .st-det { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .server-transports .danger-btn { justify-self: start; margin-top: 4px; }
+
+button.armed { background: var(--bad) !important; color: #fff !important; border-color: var(--bad) !important; }
+button.ghost.armed { background: var(--bad) !important; }

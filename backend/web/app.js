@@ -294,13 +294,14 @@ function renderServerCard(state) {
     del.textContent = "✕";
     del.title = "remove this transport and restart";
     del.addEventListener("click", function () {
-      if (!window.confirm("Remove " + carrierLabel(t.type) + " from the node and restart the core?")) return;
-      var cfg = JSON.parse(JSON.stringify(state.config));
-      cfg.openflux.transports = (cfg.openflux.transports || []).filter(function (x) { return x.type !== t.type; });
-      post("/api/config", { settings: cfg.openflux, restart: true }).then(function (res) {
-        if (res.errors && res.errors.length) { window.alert(res.errors.join("\n")); return; }
-        configLoaded = false; // the card re-reads config from state
-        refreshState();
+      armButton(del, function () {
+        var cfg = JSON.parse(JSON.stringify(state.config));
+        cfg.openflux.transports = (cfg.openflux.transports || []).filter(function (x) { return x.type !== t.type; });
+        post("/api/config", { settings: cfg.openflux, restart: true }).then(function (res) {
+          if (res.errors && res.errors.length) { window.alert(res.errors.join("\n")); return; }
+          configLoaded = false; // the card re-reads config from state
+          refreshState();
+        });
       });
     });
     row.appendChild(name); row.appendChild(det); row.appendChild(del);
@@ -317,13 +318,14 @@ function renderServerCard(state) {
     delNode.className = "danger-btn";
     delNode.textContent = "Delete node";
     delNode.addEventListener("click", function () {
-      if (!window.confirm("Delete the whole node? The core stops; the config, cookies and logs are wiped.")) return;
-      var cfg = JSON.parse(JSON.stringify(state.config));
-      cfg.openflux.transports = [];
-      post("/api/config", { settings: cfg.openflux, restart: false }).then(function (res) {
-        if (res.errors && res.errors.length) { window.alert(res.errors.join("\n")); return; }
-        configLoaded = false;
-        refreshState(); // card disappears, header returns to "+ Add server"
+      armButton(delNode, function () {
+        var cfg = JSON.parse(JSON.stringify(state.config));
+        cfg.openflux.transports = [];
+        post("/api/config", { settings: cfg.openflux, restart: false }).then(function (res) {
+          if (res.errors && res.errors.length) { window.alert(res.errors.join("\n")); return; }
+          configLoaded = false;
+          refreshState(); // card disappears, header returns to "+ Add server"
+        });
       });
     });
     list.appendChild(delNode);
@@ -342,6 +344,29 @@ function enterApp() {
   hide($("view-login"));
   show($("view-app"));
   refreshState();
+}
+
+// two-step arming: the first click arms the button (it changes label and
+// goes red), the second within 5 s executes. No window.confirm — Firefox
+// silently swallows dialogs once "block additional dialogs" was checked.
+function armButton(btn, exec) {
+  if (btn.dataset.armed === "1") {
+    btn.dataset.armed = "";
+    btn.classList.remove("armed");
+    exec();
+    return;
+  }
+  btn.dataset.armed = "1";
+  btn.classList.add("armed");
+  var prev = btn.textContent;
+  btn.textContent = "Really delete?";
+  setTimeout(function () {
+    if (btn.dataset.armed === "1") {
+      btn.dataset.armed = "";
+      btn.classList.remove("armed");
+      btn.textContent = prev;
+    }
+  }, 5000);
 }
 
 var statusTimer = null;
@@ -473,9 +498,10 @@ function bindApp() {
     try { document.execCommand("copy"); } catch (e) { /* clipboard API only in secure contexts */ }
   });
   $("btn-key-rotate").addEventListener("click", function () {
-    if (!window.confirm("Rotate the encryption key? Every existing client link stops working.")) return;
-    post("/api/key/rotate").then(function (res) {
-      setText("update-result", res.message || "key rotated");
+    armButton($("btn-key-rotate"), function () {
+      post("/api/key/rotate").then(function (res) {
+        setText("update-result", res.message || "key rotated");
+      });
     });
   });
 
