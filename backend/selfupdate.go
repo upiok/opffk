@@ -287,29 +287,26 @@ func (app *App) ApplySelfUpdate() (*opffkReleaseInfo, error) {
 			"curl -fsSL https://raw.githubusercontent.com/upiok/opffk/main/install.sh | OPFFK_REPO=upiok/opffk sh)", err)
 	}
 
-	// keep the previous backend for manual recovery
-	_ = os.Remove(app.paths.WebBin + ".previous")
+	// keep the previous backend for manual recovery — in the state dir,
+	// which the service user can always write
+	backup := filepath.Join(app.paths.StateDir, "opffk-web.previous")
 	if fileExists(app.paths.WebBin) {
-		if err := os.Rename(app.paths.WebBin, app.paths.WebBin+".previous"); err != nil {
+		if err := copyFile(app.paths.WebBin, backup, 0o755); err != nil {
 			return nil, fmt.Errorf("backup current backend: %w", err)
 		}
 	}
-	if err := copyFile(newBackend, app.paths.WebBin+".new", 0o755); err != nil {
-		return nil, err
-	}
-	if err := os.Rename(app.paths.WebBin+".new", app.paths.WebBin); err != nil {
+	// swap the binaries: in place over the service-user-owned files, or a
+	// rename when that fails and the directory is writable
+	if err := installBinary(newBackend, app.paths.WebBin); err != nil {
 		return nil, fmt.Errorf("install backend: %w", err)
 	}
-	if err := copyFile(newCore, app.paths.CoreBin+".new", 0o755); err != nil {
-		return nil, err
-	}
-	if fileExists(app.paths.CorePrevBin) {
-		_ = os.Remove(app.paths.CorePrevBin)
-	}
+	prevCore := filepath.Join(app.paths.StateDir, "openflux.previous")
 	if fileExists(app.paths.CoreBin) {
-		_ = os.Rename(app.paths.CoreBin, app.paths.CorePrevBin)
+		if err := copyFile(app.paths.CoreBin, prevCore, 0o755); err != nil {
+			return nil, fmt.Errorf("backup current core: %w", err)
+		}
 	}
-	if err := os.Rename(app.paths.CoreBin+".new", app.paths.CoreBin); err != nil {
+	if err := installBinary(newCore, app.paths.CoreBin); err != nil {
 		return nil, fmt.Errorf("install core: %w", err)
 	}
 	if err := copyFile(newManifest, app.paths.ManifestFile()+".new", 0o644); err != nil {
@@ -361,6 +358,30 @@ func (app *App) ApplySelfUpdate() (*opffkReleaseInfo, error) {
 			app.paths.InitScript, err)
 	}
 	return res, nil
+}
+
+// installBinary replaces an installed binary with the staged one: write
+// the new content in place over the existing file (the service user owns
+// it after any previous web update — no directory write needed), or fall
+// back to staging + rename when the file is not ours (root-owned after a
+// fresh SSH install).
+func installBinary(staged, target string) error {
+	data, err := os.ReadFile(staged)
+	if err != nil {
+		return err
+	}
+	if err := writeFileInPlace(target, data, 0o755); err == nil {
+		return nil
+	}
+	_ = os.Remove(target + ".new")
+	if err := copyFile(staged, target+".new", 0o755); err != nil {
+		return fmt.Errorf("stage: %w", err)
+	}
+	if err := os.Rename(target+".new", target); err != nil {
+		return fmt.Errorf("%w (recovery: run the installer once over SSH: "+
+			"curl -fsSL https://raw.githubusercontent.com/upiok/opffk/main/install.sh | OPFFK_REPO=upiok/opffk sh)", err)
+	}
+	return nil
 }
 
 func archNameForManifest(hostArch string) string {

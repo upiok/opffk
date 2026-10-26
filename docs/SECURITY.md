@@ -131,7 +131,7 @@ user — an accepted trade-off: a compromised web session could replace
 the deployment's binaries, but a compromised web session could also
 reconfigure the exit node entirely, so the boundary does not move. The
 previous backend binary is kept at `<prefix>/bin/opffk-web.previous`
-for manual recovery.
+for manual recovery — kept in the state directory (`var/lib/opffk`), the one place the service user can always write.
 
 ## What opffk will not do
 

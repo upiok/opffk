@@ -315,7 +315,7 @@ RES=$(curl -sS -b "$COOKIES" -X POST -H "X-Opffk-CSRF: $CSRF2" -H "Content-Type:
 echo "$RES" | grep -q '"ok":true' || fail "self-update apply failed: $RES"
 cmp -s "$SBX/bin/opffk-web" "$WORK/opffk-web-new" || fail "backend binary not replaced"
 grep -q "opffk v9.9.9" "$SBX/share/opffk/opffk-VERSION" 2>/dev/null || grep -q "v9.9.9" "$SBX/share/opffk/opffk-VERSION" || fail "opffk version marker not updated"
-[ -x "$SBX/bin/opffk-web.previous" ] || fail "previous backend not kept"
+[ -x "$SBX/var/lib/opffk/opffk-web.previous" ] || fail "previous backend not kept"
 pass "full self-update swapped backend, init script, manifest and version (exec skipped in test mode)"
 kill $RELHTTPPID 2>/dev/null || true
 

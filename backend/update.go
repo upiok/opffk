@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -307,20 +308,16 @@ func (app *App) ApplyUpdate() (*UpdateResult, error) {
 		}
 	}
 
-	// Swap binaries. Keep the previous one for rollback.
-	if fileExists(app.paths.CorePrevBin) {
-		_ = os.Remove(app.paths.CorePrevBin)
-	}
-	hadOld := fileExists(app.paths.CoreBin)
-	if hadOld {
-		if err := os.Rename(app.paths.CoreBin, app.paths.CorePrevBin); err != nil {
-			return nil, fmt.Errorf("swap: %w", err)
+	// Swap the core binary: in place (service-user-owned after a web
+	// update) or staged+rename; the old one is copied to the state dir
+	// for the rollback path.
+	prevCore := filepath.Join(app.paths.StateDir, "openflux.previous")
+	if fileExists(app.paths.CoreBin) {
+		if err := copyFile(app.paths.CoreBin, prevCore, 0o755); err != nil {
+			return nil, fmt.Errorf("backup current core: %w", err)
 		}
 	}
-	if err := os.Rename(app.paths.CoreBin+".new", app.paths.CoreBin); err != nil {
-		if hadOld {
-			_ = os.Rename(app.paths.CorePrevBin, app.paths.CoreBin)
-		}
+	if err := installBinary(app.paths.CoreBin+".new", app.paths.CoreBin); err != nil {
 		return nil, fmt.Errorf("swap: %w", err)
 	}
 	_ = os.WriteFile(app.paths.CoreVersionFile(), []byte(m.Core.Version+"\n"), 0o644)
@@ -337,9 +334,11 @@ func (app *App) ApplyUpdate() (*UpdateResult, error) {
 
 	// Rollback.
 	app.log.write("update: health check failed (" + healthErr.Error() + "), rolling back")
-	if hadOld {
-		_ = os.Remove(app.paths.CoreBin)
-		_ = os.Rename(app.paths.CorePrevBin, app.paths.CoreBin)
+	if fileExists(prevCore) {
+		data, rerr := os.ReadFile(prevCore)
+		if rerr == nil {
+			_ = writeFileInPlace(app.paths.CoreBin, data, 0o755)
+		}
 	}
 	_ = os.WriteFile(app.paths.CoreVersionFile(), []byte(installed+"\n"), 0o644)
 	rbErr := ""
