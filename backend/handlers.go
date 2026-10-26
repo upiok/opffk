@@ -94,6 +94,7 @@ func (app *App) routes() http.Handler {
 	mux.HandleFunc("/api/service/restart", app.withAuthCSRF(app.handleServiceRestart))
 	mux.HandleFunc("/api/link", app.withAuthCSRF(app.handleLink))
 	mux.HandleFunc("/api/key/rotate", app.withAuthCSRF(app.handleKeyRotate))
+	mux.HandleFunc("/api/cups/rooms", app.withAuthCSRF(app.handleCupsCreateRooms))
 	mux.HandleFunc("/api/password", app.withAuthCSRF(app.handlePassword))
 	mux.HandleFunc("/api/update", app.withAuthCSRF(app.handleUpdate))
 	mux.HandleFunc("/api/uninstall", app.withAuthCSRF(app.handleUninstall))
@@ -572,6 +573,67 @@ func (app *App) publicHostHint() string {
 		}
 	}
 	return ""
+}
+
+// ---- cups.online rooms ----------------------------------------------------------------
+
+// handleCupsCreateRooms creates a fresh cups.online room set with the
+// pinned core's --create-cups-rooms, persists the packed list as the
+// cupsonline transport's URL, rewrites the core config and restarts.
+// Client links generated afterwards carry the rooms.
+func (app *App) handleCupsCreateRooms(w http.ResponseWriter, r *http.Request, sess *session) {
+	if !fileExists(app.paths.CoreBin) {
+		jsonErr(w, http.StatusConflict, "core binary missing")
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, app.paths.CoreBin, "--create-cups-rooms")
+	out, err := cmd.Output()
+	if err != nil {
+		jsonErr(w, http.StatusInternalServerError, "create rooms failed: "+strings.TrimSpace(err.Error()+" "+string(out)))
+		return
+	}
+	var parsed struct {
+		Rooms string `json:"rooms"`
+	}
+	if err := json.Unmarshal(out, &parsed); err != nil || parsed.Rooms == "" {
+		jsonErr(w, http.StatusInternalServerError, "core returned no room list")
+		return
+	}
+
+	// persist into the (first) cupsonline transport
+	cfg := app.cfg
+	found := false
+	for i := range cfg.OpenFlux.Transports {
+		if cfg.OpenFlux.Transports[i].Type == "cupsonline" {
+			cfg.OpenFlux.Transports[i].URL = parsed.Rooms
+			found = true
+		}
+	}
+	if !found {
+		cfg.OpenFlux.Transports = append(cfg.OpenFlux.Transports,
+			TransportSetting{Type: "cupsonline", Priority: 50, URL: parsed.Rooms})
+	}
+	if errs := ValidateSettings(&cfg.OpenFlux, cfg.AllowL3); len(errs) > 0 {
+		jsonOK(w, map[string]interface{}{"ok": false, "errors": errs})
+		return
+	}
+	if err := cfg.Save(app.paths); err != nil {
+		jsonErr(w, http.StatusInternalServerError, "save ui.json: "+err.Error())
+		return
+	}
+	if err := WriteCoreConfig(app.paths, &cfg.OpenFlux); err != nil {
+		jsonErr(w, http.StatusInternalServerError, "write core config: "+err.Error())
+		return
+	}
+	if err := app.sup.Restart(); err != nil {
+		jsonOK(w, map[string]interface{}{"ok": true, "restart_error": err.Error(),
+			"rooms": parsed.Rooms})
+		return
+	}
+	app.log.write("cups: room set created via web UI and persisted")
+	jsonOK(w, map[string]interface{}{"ok": true, "rooms": parsed.Rooms})
 }
 
 // ---- key & password ------------------------------------------------------------------

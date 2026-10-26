@@ -292,6 +292,27 @@ function renderServerCard(state) {
     if (t.type === "direct") det.textContent = t.listen || "";
     else if (t.type === "oneme") det.textContent = "priority " + t.priority;
     else det.textContent = t.url || "";
+    var cupsBtn = null;
+    if (t.type === "cupsonline") {
+      cupsBtn = document.createElement("button");
+      cupsBtn.type = "button";
+      cupsBtn.className = "ghost small-btn";
+      cupsBtn.textContent = "Create rooms";
+      cupsBtn.title = "create a fresh cups.online room set (takes up to a minute)";
+      cupsBtn.addEventListener("click", function () {
+        cupsBtn.disabled = true;
+        cupsBtn.textContent = "creating…";
+        post("/api/cups/rooms").then(function () {
+          configLoaded = false;
+          refreshState();
+        }).catch(function (err) {
+          cupsBtn.disabled = false;
+          cupsBtn.textContent = "Create rooms";
+          window.alert("create rooms failed: " + err.message);
+        });
+      });
+    }
+
     var del = document.createElement("button");
     del.type = "button";
     del.className = "ghost small-btn";
@@ -308,7 +329,9 @@ function renderServerCard(state) {
         });
       });
     });
-    row.appendChild(name); row.appendChild(det); row.appendChild(del);
+    row.appendChild(name); row.appendChild(det);
+    if (cupsBtn) row.appendChild(cupsBtn);
+    row.appendChild(del);
     list.appendChild(row);
   });
   if (transports.length) {
