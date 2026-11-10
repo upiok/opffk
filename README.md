@@ -43,7 +43,9 @@ installing it you accept full responsibility for its use.
   `aarch64`, `armv7l` — see [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
   MIPS-based Keenetics are **not supported** (upstream publishes no MIPS
   binaries).
-- **RAM**: 128 MB free minimum, 256 MB recommended.
+- **RAM**: 128 MB free minimum, 256 MB recommended. Smaller routers:
+  pass `--skip-ram-check` to install anyway (at your own risk; the
+  choice is remembered for future upgrades).
 - **Storage**: 150 MB free under `/opt` (the upstream core is ~25 MB).
 - No systemd, bash, Docker, Python or Node.js required. The installer uses
   POSIX `sh`, `curl` or `wget` (HTTPS-capable), `tar` and a `sha256` tool —
@@ -165,6 +167,7 @@ Logs: `/opt/var/log/opffk/core.log` (+`.1` rotation), `web.log`,
 | `web UI port ... already in use` | Re-run the installer with `--port N` |
 | UI unreachable from LAN | Wrong bind address: re-run with `--listen-ip <router-LAN-IP>`; check `/opt/var/log/opffk/console.log` |
 | Core exits / restarts forever | `cat /opt/var/log/opffk/core.log`; usually bad transport URL/token or no RAM — check `MemoryAvailable` |
+| Installer: `not enough RAM` on a router you know works | Low-RAM devices can bypass the check: add `--skip-ram-check` to the installer arguments (the choice is remembered for upgrades) |
 | Client cannot connect from WAN | Port forwarding not configured (you must do it in the Keenetic UI), or ISP CGNAT |
 | Lost web password | `sh install.sh reset-password` |
 | `service account "openflux" not found` | The Entware passwd file was restored/trimmed — re-run the installer |

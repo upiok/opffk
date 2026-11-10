@@ -184,6 +184,41 @@ FAKE_SHA=$(sha256_of "$REL/openflux-linux-$HOST_ARCH")
 sed "s/\"$HOST_ARCH\": \"[0-9a-f]\{64\}\"/\"$HOST_ARCH\": \"$FAKE_SHA\"/; s/\"version\": \"node-v[^\"]*\"/\"version\": \"node-v0.0.0-test\"/" \
     "$ROOT_DIR/manifest.json" > "$REL/manifest.json"
 
+# ---- RAM check gating ----------------------------------------------------------
+
+# default: hard-fail below 128 MB
+OUT=$(OPFFK_TEST_MODE=1 OPFFK_MEM_KB=64000 sh "$ROOT_DIR/install.sh" install --from-dir "$REL" --prefix "$SBX" --no-start 2>&1)
+case "$OUT" in
+    *"not enough RAM"*) ok "low RAM hard-fails by default" ;;
+    *) bad "low RAM did not hard-fail"; printf '%s\n' "$OUT" | tail -5 >&2 ;;
+esac
+
+# --skip-ram-check: installs, warns, and persists the choice
+OUT=$(OPFFK_TEST_MODE=1 OPFFK_MEM_KB=64000 sh "$ROOT_DIR/install.sh" install --from-dir "$REL" --prefix "$SBX" --listen-ip 127.0.0.1 --port 18797 --no-start --skip-ram-check 2>&1)
+RC=$?
+if [ "$RC" != "0" ]; then printf '%s\n' "$OUT" | sed -n '1,25p' >&2; fi
+expect_eq "low RAM install succeeds with --skip-ram-check" "0" "$RC"
+case "$OUT" in
+    *"RAM check skipped"*) ok "skip warning is shown" ;;
+    *) bad "skip warning missing"; printf '%s\n' "$OUT" | tail -5 >&2 ;;
+esac
+[ -f "$SBX/etc/opffk/.ram-check-skipped" ] && ok "skip choice persisted for upgrades" || bad "skip marker not written"
+
+# a later upgrade WITHOUT the flag still skips (marker honored)
+OUT=$(OPFFK_TEST_MODE=1 OPFFK_MEM_KB=64000 sh "$ROOT_DIR/install.sh" install --from-dir "$REL" --prefix "$SBX" --listen-ip 127.0.0.1 --port 18797 --no-start 2>&1)
+expect_eq "marker-honored upgrade succeeds" "0" "$?"
+case "$OUT" in
+    *"RAM check skipped"*) ok "marker-honored upgrade warns" ;;
+    *) bad "marker-honored upgrade lost the warning" ;;
+esac
+rm -f "$SBX/etc/opffk/.ram-check-skipped"
+
+# normal memory: no skip marker, no hard failure
+OUT=$(OPFFK_TEST_MODE=1 OPFFK_MEM_KB=262144 sh "$ROOT_DIR/install.sh" install --from-dir "$REL" --prefix "$SBX" --listen-ip 127.0.0.1 --port 18797 --no-start 2>&1)
+expect_eq "normal RAM install succeeds" "0" "$?"
+[ -f "$SBX/etc/opffk/.ram-check-skipped" ] && bad "marker written on healthy RAM" || ok "no skip marker on healthy RAM"
+
+
 # --no-start: this test's fake backend cannot serve HTTP; the real
 # start+credential flow is covered by tests/e2e_smoke.sh.
 OUT=$(OPFFK_TEST_MODE=1 sh "$ROOT_DIR/install.sh" install --from-dir "$REL" --prefix "$SBX" \

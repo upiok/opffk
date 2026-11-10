@@ -32,6 +32,8 @@
 #   --prefix DIR       Entware prefix (default /opt; do not change on Keenetic)
 #   --listen-ip IP     web UI bind address (default: detected LAN address)
 #   --port N           web UI port (default 8791)
+#   --skip-ram-check   install even below the 128 MB RAM minimum (at your
+#                      own risk; the choice is remembered for upgrades)
 #   --no-start         do not start the service after installing
 #   --dry-run          show what would be done without changing anything
 #
@@ -42,7 +44,7 @@
 set -u
 
 # ---- pinned defaults (see manifest.json; updated together with it) ---------
-OPFFK_VERSION_DEFAULT="v0.2.8"
+OPFFK_VERSION_DEFAULT="v0.2.9"
 
 OPFFK_PREFIX="${OPFFK_PREFIX:-/opt}"
 OPFFK_REPO="${OPFFK_REPO:-}"
@@ -53,6 +55,7 @@ OPFFK_LISTEN_IP=""
 OPFFK_PORT=""
 OPFFK_NO_START=0
 OPFFK_DRY_RUN=0
+SKIP_RAM_CHECK="${OPFFK_SKIP_RAM_CHECK:-0}"
 OPFFK_TEST_MODE="${OPFFK_TEST_MODE:-0}"
 OPFFK_CMD="install"
 
@@ -118,7 +121,12 @@ validate_key_hex() {
 }
 
 # mem_available_kb: MemAvailable from /proc/meminfo, 0 when unreadable.
+# OPFFK_MEM_KB overrides the value for automated tests.
 mem_available_kb() {
+    if [ -n "${OPFFK_MEM_KB:-}" ]; then
+        echo "$OPFFK_MEM_KB"
+        return 0
+    fi
     _ma=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo 2>/dev/null)
     [ -n "${_ma:-}" ] || _ma=$(awk '/^MemFree:|^Buffers:|^Cached:/ {s+=$2} END {print s}' /proc/meminfo 2>/dev/null)
     [ -n "${_ma:-}" ] || _ma=0
@@ -226,13 +234,23 @@ Refusing to install an unverified binary."
     info "architecture: ${_arch_uname} -> upstream binary arch '$_arch'"
 
     _memkb=$(mem_available_kb)
-    if [ "$_memkb" -lt 131072 ] 2>/dev/null; then
+    _ram_marker="$OPFFK_PREFIX/etc/opffk/.ram-check-skipped"
+    if [ "${SKIP_RAM_CHECK:-0}" = "1" ] || [ -f "$_ram_marker" ]; then
+        # --skip-ram-check (or a previous run that used it): install on low
+        # RAM at the operator's own risk. Remember the choice so future
+        # upgrades do not fail on the same check.
+        if [ "${SKIP_RAM_CHECK:-0}" = "1" ]; then
+            mkdir -p "$OPFFK_PREFIX/etc/opffk" 2>/dev/null || true
+            : > "$_ram_marker" 2>/dev/null || true
+        fi
+        warn "RAM check skipped (${_memkb:-?} KB available) — the exit node may be unstable on low memory"
+    elif [ "$_memkb" -lt 131072 ] 2>/dev/null; then
         die "not enough RAM: $((_memkb/1024)) MB available, need at least 128 MB" \
 "The OpenFlux core (gVisor userspace networking) and the web backend both
 need memory. Free RAM by disabling unused Keenetic components or use a
-model with more memory."
-    fi
-    if [ "$_memkb" -lt 262144 ] 2>/dev/null; then
+model with more memory. If you accept the risk anyway, re-run with
+--skip-ram-check."
+    elif [ "$_memkb" -lt 262144 ] 2>/dev/null; then
         warn "only $((_memkb/1024)) MB RAM available; the exit node will work but expect tight margins (GOMEMLIMIT is capped at 128 MiB)"
     fi
 
@@ -741,6 +759,7 @@ parse_args() {
             --listen-ip) [ $# -ge 2 ] || die "--listen-ip needs a value" ""; OPFFK_LISTEN_IP="$2"; shift ;;
             --port) [ $# -ge 2 ] || die "--port needs a value" ""; OPFFK_PORT="$2"; shift ;;
             --no-start) OPFFK_NO_START=1 ;;
+            --skip-ram-check) SKIP_RAM_CHECK=1 ;;
             --dry-run) OPFFK_DRY_RUN=1 ;;
             -h|--help) usage; exit 0 ;;
             *) die "unknown argument: $1 (see --help)" "" ;;
